@@ -1,0 +1,132 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Registrar nuevo estudiantes</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<section class="card" aria-label="Registrar nuevo estudiantes">
+		<h2 class="card-title">Registrar nuevo estudiantes</h2>
+
+		<form class="form" [formGroup]="form" (ngSubmit)="submit()">
+			<div class="grid">
+				<div class="field">
+					<label for="course">Curso:</label>
+					<select id="course" formControlName="courseId" (change)="onCourseChange(($any($event.target)).value)">
+						<option value="" disabled>Seleccionar curso</option>
+						@for (course of courses(); track course.id) {
+							<option [value]="course.id">{{ course.name }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="student">Nombre completo:</label>
+					<select id="student" formControlName="studentId" (change)="onStudentChange(($any($event.target)).value)" [disabled]="availableStudents().length === 0">
+						<option value="" disabled>Seleccionar estudiante</option>
+						@for (s of availableStudents(); track s.id) {
+							<option [value]="s.id">{{ s.code ? (s.code + ' - ') : '' }}{{ s.name }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="program">Programa académico:</label>
+					<input id="program" type="text" formControlName="programaAcademico" placeholder="Ej: Ingeniería de Software" />
+				</div>
+
+				<div class="field">
+					<label for="code">Código del Estudiante:</label>
+					<input id="code" type="text" formControlName="studentCode" placeholder="Ej: 20231050" />
+				</div>
+
+				<div class="field">
+					<label for="docente">Docente:</label>
+					<input id="docente" type="text" formControlName="docente" placeholder="Ej: Juan Pérez" />
+				</div>
+			</div>
+
+			<div class="actions">
+				<button class="btn btn-cancel" type="button" (click)="cancel()">
+					<span class="btn-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="12" cy="12" r="10"></circle>
+							<path d="M15 9l-6 6M9 9l6 6"></path>
+						</svg>
+					</span>
+					Cancelar
+				</button>
+				<button class="btn btn-primary" type="submit" [disabled]="form.invalid">
+					<span class="btn-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+							<circle cx="9" cy="7" r="4"></circle>
+							<path d="M19 8v6M22 11h-6"></path>
+						</svg>
+					</span>
+					Registrar estudiante
+				</button>
+			</div>
+		</form>
+	</section>
+
+	<section class="card" aria-label="Estudiantes registrados">
+		<div class="card-head">
+			<h2 class="card-title">Estudiantes registrados</h2>
+			<div class="filter">
+				<label for="filterCourse">Filtrar por curso:</label>
+				<select id="filterCourse" [value]="filterCourseId()" (change)="setFilter(($any($event.target)).value)">
+					<option value="all">Todos los cursos</option>
+					@for (course of courses(); track course.id) {
+						<option [value]="course.id">{{ course.name }}</option>
+					}
+				</select>
+			</div>
+		</div>
+
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Código</th>
+						<th>Nombre</th>
+						<th>Curso</th>
+						<th>Programa académico</th>
+						<th>Docente</th>
+						<th>Fecha registro</th>
+						<th class="th-action">Action</th>
+					</tr>
+				</thead>
+				<tbody>
+					@if (filteredStudents().length === 0) {
+						<tr>
+							<td class="empty" colspan="7">Sin estudiantes registrados</td>
+						</tr>
+					} @else {
+						@for (row of filteredStudents(); track row.code) {
+							<tr>
+								<td>{{ row.code }}</td>
+								<td>{{ row.fullName }}</td>
+								<td>{{ row.courseName }}</td>
+								<td>{{ row.programaAcademico || '—' }}</td>
+								<td>{{ row.docente || '—' }}</td>
+								<td>{{ row.date }}</td>
+								<td class="td-action">
+									<button class="icon-btn edit" type="button" (click)="edit(row.code)" aria-label="Editar">
+										<svg viewBox="0 0 24 24" fill="currentColor">
+											<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+										</svg>
+									</button>
+									<button class="icon-btn delete" type="button" (click)="remove(row.code)" aria-label="Eliminar">
+										<svg viewBox="0 0 24 24" fill="currentColor">
+											<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+										</svg>
+									</button>
+								</td>
+							</tr>
+						}
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+</div>

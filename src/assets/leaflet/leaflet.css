@@ -1,0 +1,17 @@
+/* Iconos de los marcadores */
+.leaflet-container .leaflet-marker-icon {
+  background-image: url(/assets/leaflet/images/marker-icon.png);
+}
+
+.leaflet-container .leaflet-marker-shadow {
+  background-image: url(/assets/leaflet/images/marker-shadow.png);
+}
+
+/* Capas del mapa */
+.leaflet-control-layers {
+  background-image: url(/assets/leaflet/images/layers.png);
+}
+
+.leaflet-control-layers-toggle {
+  background-image: url(/assets/leaflet/images/layers-2x.png);
+}

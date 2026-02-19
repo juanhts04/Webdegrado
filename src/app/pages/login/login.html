@@ -1,68 +1,51 @@
-<div class="main-container">
+<div class="login-page">
+  <main class="login-card" aria-labelledby="loginTitle">
+    <div class="brand">
+      <img
+        class="brand-logo"
+        ngSrc="assets/img/logo.png"
+        width="220"
+        height="220"
+        alt="Universidad del Pacífico"
+        priority
+      />
+    </div>
 
-  <!-- Sección Superior: Logo y Títulos -->
-  <div class="header-section">
-    <div class="logo-container">
-      <div class="logo-placeholder">
-        <img src="assets/img/logo.png" alt="Logo" class="logo-img" />
-        <div class="logo-text">
-          <span class="text-blue">UNIVERSIDAD</span>
-          <span class="text-green">DEL PACÍFICO</span>
-        </div>
+    <h1 id="loginTitle" class="sr-only">Iniciar sesión</h1>
+
+    <form class="form" (ngSubmit)="login()" #form="ngForm">
+      <div class="field">
+        <input
+          type="text"
+          [(ngModel)]="loginData.correo"
+          name="correo"
+          placeholder="Usuario"
+          autocomplete="username"
+          required
+          aria-label="Usuario"
+        />
       </div>
-    </div>
 
-    <div class="title-container">
-      <h1>Iniciar sesión</h1>
-      <p>Ingresa tu usuario y contraseña</p>
-    </div>
-  </div>
+      <div class="field">
+        <input
+          type="password"
+          [(ngModel)]="loginData.contrasena"
+          name="contrasena"
+          placeholder="Contraseña"
+          autocomplete="current-password"
+          required
+          aria-label="Contraseña"
+        />
+      </div>
 
-  <!-- Sección Inferior: Formulario -->
-  <div class="green-form-container">
-    <div class="form-content">
+      <button class="btn-primary" type="submit">Acceder</button>
 
-      <form (ngSubmit)="login()">
-
-        <!-- Usuario -->
-        <div class="input-group">
-          <label class="custom-label">Usuario</label>
-          <input
-            type="text"
-            [(ngModel)]="loginData.correo"
-            name="correo"
-            placeholder="Ingresa tu usuario"
-            class="custom-input"
-          />
-        </div>
-
-        <!-- Contraseña -->
-        <div class="input-group">
-          <label class="custom-label">Contraseña</label>
-          <input
-            type="password"
-            [(ngModel)]="loginData.contrasena"
-            name="contrasena"
-            placeholder="●●●●●●●●"
-            class="custom-input"
-          />
-        </div>
-
-        <!-- Botón Iniciar Sesión -->
-        <button type="submit" class="btn-login">
-          Iniciar sesión
-        </button>
-
-      </form>
-
-      <!-- Botón Registrarse -->
-      <button
-        class="btn-register"
-        routerLink="/registrar-usuario">
-        Registrarse
+      <button class="btn-link" type="button" (click)="olvidoContrasena()">
+        ¿Olvidó su contraseña?
       </button>
+    </form>
 
-    </div>
-  </div>
+    <hr class="divider" aria-hidden="true" />
 
+  </main>
 </div>

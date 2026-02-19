@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { NgOptimizedImage } from '@angular/common';
 
 import { UsuarioService } from '../../services/usuario';
 
@@ -9,9 +10,10 @@ import { UsuarioService } from '../../services/usuario';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NgOptimizedImage],
   templateUrl: './login.html',
   styleUrls: ['./login.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Login {
 
@@ -20,11 +22,8 @@ export class Login {
     contrasena: ''
   };
 
-  constructor(
-    private router: Router,
-    private usuarioService: UsuarioService
-
-  ) {}
+  private readonly router = inject(Router);
+  private readonly usuarioService = inject(UsuarioService);
 
   login() {
     if (!this.loginData.correo || !this.loginData.contrasena) {
@@ -78,5 +77,13 @@ export class Login {
 
   registrarseU() {
     this.router.navigate(['/registrar-usuario']);
+  }
+
+  olvidoContrasena() {
+    alert('Si olvidaste tu contraseña, contacta al administrador.');
+  }
+
+  entrarComoInvitado() {
+    this.router.navigate(['/jcprincipal']);
   }
 }
