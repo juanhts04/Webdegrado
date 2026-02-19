@@ -1,0 +1,134 @@
+ion-content {
+  --background: #ffffff;
+}
+
+.main-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+/* --- Header Section --- */
+.header-section {
+  padding: 40px 30px 20px 30px;
+  background-color: #ffffff;
+
+  .logo-placeholder {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 30px;
+
+    .logo-img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+    }
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      font-size: 1.3rem;
+      font-weight: 800;
+      line-height: 1.1;
+
+      .text-blue { color: #005691; } /* Azul similar al logo */
+      .text-green { color: #28a745; } /* Verde similar */
+    }
+  }
+
+  .title-container {
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #000;
+      margin-bottom: 8px;
+      margin-top: 0;
+    }
+    p {
+      color: #555;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+  }
+}
+
+/* --- Green Form Section --- */
+.green-form-container {
+  flex: 1;
+  background-color: #28a745; /* Verde principal */
+  border-top-right-radius: 120px; /* Curva característica */
+  padding: 50px 30px 30px 30px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+  margin-top: 20px;
+}
+
+.form-content {
+  width: 100%;
+}
+
+.custom-list {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.input-group {
+  margin-bottom: 25px;
+}
+
+.custom-label {
+  display: block;
+  font-weight: 700;
+  color: #000 !important; /* Texto negro sobre verde, según imagen */
+  font-size: 1rem;
+  margin-bottom: 5px;
+  margin-left: 5px;
+}
+
+.custom-item {
+  --background: transparent;
+  --background-hover: transparent;
+  --background-focused: transparent;
+  --ripple-color: transparent;
+  --border-color: #000; /* Línea negra */
+  --highlight-color-focused: #000;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+
+  /* Forzar borde inferior visible */
+  border-bottom: 1px solid #000;
+}
+
+.custom-input {
+  --color: #000;
+  --placeholder-color: #333;
+  --padding-top: 10px;
+  --padding-bottom: 10px;
+  font-size: 1rem;
+}
+
+/* --- Botones --- */
+.btn-login {
+  margin-top: 40px;
+  height: 55px;
+  --background: #ffffff; /* Botón blanco */
+  --color: #000000;      /* Texto negro */
+  --border-radius: 30px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  --box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.btn-register {
+  margin-top: 20px;
+  height: 50px;
+  --border-color: #ffffff;
+  --border-width: 2px;
+  --color: #ffffff;
+  font-weight: 600;
+  --border-radius: 30px;
+}
+
