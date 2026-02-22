@@ -1,0 +1,235 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Gestionar salón</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registro'" (click)="setTab('registro')">Registrar</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registrados'" (click)="setTab('registrados')">Registrados</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'salones'" (click)="setTab('salones')">Salones</button>
+	</nav>
+
+	@if (activeTab() === 'registro') {
+		<section class="card" aria-label="Registrar salón">
+			<h2 class="card-title">{{ editingId() ? 'Editar salón' : 'Registrar nuevo salón' }}</h2>
+
+			<form class="form" [formGroup]="salonForm" (ngSubmit)="submitSalon()">
+				<div class="grid">
+					<div class="field">
+						<label for="codigo">Código del salón</label>
+						<input id="codigo" type="text" formControlName="codigo" placeholder="Ej: A1B2C3" />
+					</div>
+
+					<div class="field">
+						<label for="nombre">Nombre del salón</label>
+						<input id="nombre" type="text" formControlName="nombre" placeholder="Ej: Laboratorio de Redes" />
+					</div>
+
+					<div class="field">
+						<label for="bloque">Bloque</label>
+						<input id="bloque" type="text" formControlName="bloque" placeholder="Ej: Bloque 16" />
+					</div>
+
+					<div class="field">
+						<label for="numero">Salón</label>
+						<input id="numero" type="number" formControlName="numero_salon" placeholder="301" />
+					</div>
+				</div>
+
+				<div class="actions">
+					<button class="btn btn-cancel" type="button" (click)="cancelSalon()">Cancelar</button>
+					<button class="btn btn-primary" type="submit" [disabled]="salonForm.invalid">
+						{{ editingId() ? 'Actualizar salón' : 'Registrar salón' }}
+					</button>
+				</div>
+			</form>
+		</section>
+
+		<section class="card" aria-label="Asignar salón a curso">
+			<h2 class="card-title">Asignar Salón a Curso</h2>
+
+			<form class="form" [formGroup]="asignacionForm" (ngSubmit)="submitAsignacion()">
+				<div class="grid">
+					<div class="field">
+						<label for="curso">Curso</label>
+						<select id="curso" formControlName="cursoId">
+							<option value="" disabled>Seleccionar Curso</option>
+							@for (c of cursos(); track c.id) {
+								<option [value]="c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="field">
+						<label for="salon">Salón</label>
+						<select id="salon" formControlName="salonId">
+							<option value="" disabled>Seleccionar Salón</option>
+							@for (s of salonesRegistrados(); track (s.id ?? s.codigo)) {
+								<option [value]="s.id">{{ s.codigo ? (s.codigo + ' - ') : '' }}{{ s.nombre }}</option>
+							}
+						</select>
+					</div>
+				</div>
+
+				<div class="actions">
+					<button
+						class="btn btn-primary"
+						type="submit"
+						[disabled]="asignacionForm.invalid || asignacionForm.controls.cursoId.disabled || asignacionForm.controls.salonId.disabled"
+					>
+						Asignar
+					</button>
+				</div>
+			</form>
+		</section>
+	}
+
+	@if (activeTab() === 'registrados') {
+		<section class="card" aria-label="Salones registrados">
+			<div class="card-head">
+				<h2 class="card-title">Salones registrados</h2>
+				<div class="filter">
+					<label for="search">Buscar:</label>
+					<input
+						id="search"
+						type="search"
+						[value]="busquedaSalones()"
+						(input)="setBusquedaSalones(($any($event.target)).value)"
+						placeholder="Buscar por código, nombre, bloque o número"
+					/>
+				</div>
+			</div>
+
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Código</th>
+							<th>Nombre</th>
+							<th>Bloque</th>
+							<th>Salón</th>
+							<th class="th-action">Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						@if (loadingSalones()) {
+							<tr>
+								<td class="empty" colspan="5">Cargando…</td>
+							</tr>
+						} @else if (salonesRegistrados().length === 0) {
+							<tr>
+								<td class="empty" colspan="5">Aún no hay salones registrados.</td>
+							</tr>
+						} @else if (salonesFiltrados().length === 0) {
+							<tr>
+								<td class="empty" colspan="5">Sin resultados para la búsqueda</td>
+							</tr>
+						} @else {
+							@for (s of salonesFiltrados(); track (s.id ?? s.codigo)) {
+								<tr>
+									<td>{{ s.codigo }}</td>
+									<td>{{ s.nombre }}</td>
+									<td>{{ s.bloque || '—' }}</td>
+									<td>{{ s.numero_salon ?? '—' }}</td>
+									<td class="td-action">
+										<button class="icon-btn edit" type="button" (click)="editSalon(s)" [disabled]="!s.id" aria-label="Editar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+											</svg>
+										</button>
+										<button class="icon-btn delete" type="button" (click)="removeSalon(s)" [disabled]="!s.id" aria-label="Eliminar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+											</svg>
+										</button>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+
+	@if (activeTab() === 'salones') {
+		<section class="card" aria-label="Salones asignados">
+			<div class="card-head">
+				<h2 class="card-title">Salones asignados</h2>
+				<div class="filter">
+					<label for="filtro">Salón:</label>
+					<select id="filtro" [value]="salonAsignadoFiltroId() ?? ''" (change)="onSalonAsignadoFiltroChange(($any($event.target)).value)" [disabled]="salonesAsignadosUnicos().length === 0">
+						<option value="">Todos</option>
+						@for (s of salonesAsignadosUnicos(); track s.id) {
+							<option [value]="s.id">
+								{{ s.codigo ? (s.codigo + ' - ') : '' }}{{ s.nombre }}
+								@if (s.bloque || (s.numero_salon !== null && s.numero_salon !== undefined)) {
+									({{ s.bloque ? s.bloque : 'Bloque' }}{{ s.numero_salon !== null && s.numero_salon !== undefined ? (' - ' + s.numero_salon) : '' }})
+								}
+							</option>
+						}
+					</select>
+				</div>
+			</div>
+
+			<div class="filter filter-wide">
+				<label for="searchAsig">Buscar:</label>
+				<input
+					id="searchAsig"
+					type="search"
+					[value]="busquedaSalonesAsignados()"
+					(input)="setBusquedaSalonesAsignados(($any($event.target)).value)"
+					placeholder="Buscar por curso o salón"
+				/>
+			</div>
+
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Curso</th>
+							<th>Código</th>
+							<th>Salón</th>
+							<th>Bloque</th>
+							<th>Número</th>
+							<th class="th-action">Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						@if (loadingAsignaciones()) {
+							<tr>
+								<td class="empty" colspan="6">Cargando…</td>
+							</tr>
+						} @else if (salonesAsignados().length === 0) {
+							<tr>
+								<td class="empty" colspan="6">No hay salones asignados a cursos.</td>
+							</tr>
+						} @else if (salonesAsignadosFiltrados().length === 0) {
+							<tr>
+								<td class="empty" colspan="6">Sin resultados para la búsqueda</td>
+							</tr>
+						} @else {
+							@for (row of salonesAsignadosFiltrados(); track (row.asignacionId ?? (row.cursoId + '-' + row.salonId))) {
+								<tr>
+									<td>{{ row.cursoNombre }}</td>
+									<td>{{ row.cursoCodigo || '—' }}</td>
+									<td>{{ row.salonNombre }} @if (row.salonCodigo) {<span class="muted">({{ row.salonCodigo }})</span>}</td>
+									<td>{{ row.salonBloque || '—' }}</td>
+									<td>{{ row.salonNumero ?? '—' }}</td>
+									<td class="td-action">
+										<button class="icon-btn delete" type="button" (click)="removeAsignacion(row)" [disabled]="!row.asignacionId" aria-label="Eliminar asignación">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+											</svg>
+										</button>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+</div>

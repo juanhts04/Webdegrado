@@ -1,0 +1,177 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Generar reporte</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<section class="card" aria-label="Filtros de reporte">
+		<h2 class="card-title">Reportes de Asistencia</h2>
+
+		<form class="form" [formGroup]="filtrosForm" (ngSubmit)="generarReporte()">
+			<div class="grid">
+				<div class="field">
+					<label for="tipoReporte">Tipo de reporte</label>
+					<select id="tipoReporte" formControlName="tipoReporte">
+						<option value="" disabled>Seleccionar tipo</option>
+						<option value="1">Asistencia</option>
+						<option value="2">Ausentismo</option>
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="curso">Curso</label>
+					<select id="curso" formControlName="cursoId">
+						<option value="" disabled>Seleccionar curso</option>
+						@for (c of cursos(); track c.id) {
+							<option [value]="c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="periodo">Periodo académico</label>
+					<select id="periodo" formControlName="periodo">
+						<option value="" disabled>Seleccionar periodo</option>
+						<option value="2026-1">2026-1</option>
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="corte">Corte académico</label>
+					<select id="corte" formControlName="corte">
+						<option value="" disabled>Seleccionar corte</option>
+						<option value="1">Corte 1</option>
+						<option value="2">Corte 2</option>
+						<option value="3">Corte 3</option>
+					</select>
+				</div>
+			</div>
+
+			<div class="actions">
+				<button class="btn btn-primary" type="submit" [disabled]="!canGenerate()">Generar reporte</button>
+				<button class="btn btn-secondary" type="button" (click)="exportarPDF()" [disabled]="!resultados().length">
+					Exportar PDF
+				</button>
+			</div>
+		</form>
+	</section>
+
+	<section class="card" aria-label="Asistencias registradas">
+		<div class="card-head">
+			<h2 class="card-title">Asistencias registradas</h2>
+		</div>
+
+		@if (cargandoAsistenciasRegistradas()) {
+			<div class="loading">Cargando asistencias...</div>
+		}
+
+		@if (!cargandoAsistenciasRegistradas()) {
+			<div class="table-responsive">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>ID Asistencia</th>
+							<th>Nombre completo</th>
+							<th>Curso</th>
+							<th>Fecha</th>
+							<th>Hora inicio</th>
+							<th>Hora fin</th>
+							<th>Estado</th>
+						</tr>
+					</thead>
+					<tbody>
+						@for (a of asistenciasRegistradas(); track (a.id_asistencia ?? $index)) {
+							<tr>
+								<td>{{ a.id_asistencia ?? '—' }}</td>
+								<td>{{ a.nombre_completo ?? '—' }}</td>
+								<td>{{ a.curso ?? '—' }}</td>
+								<td>{{ formatFecha(a.fecha) }}</td>
+								<td>{{ a.hora_inicio ?? '—' }}</td>
+								<td>{{ a.hora_fin || '—' }}</td>
+								<td>
+									<span
+										class="badge"
+										[class.presente]="(a.estado || '').toString().toLowerCase() === 'presente'"
+										[class.ausente]="(a.estado || '').toString().toLowerCase() === 'ausente'"
+									>
+										{{ a.estado ?? '—' }}
+									</span>
+								</td>
+							</tr>
+						}
+
+						@if (!asistenciasRegistradas().length) {
+							<tr>
+								<td class="empty" colspan="7">Sin asistencias registradas</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</section>
+
+	<section class="card" aria-label="Resultado del reporte">
+		<h2 class="card-title">Resultado del reporte</h2>
+
+		<div class="table-responsive">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Curso</th>
+						<th>Total estudiantes</th>
+						<th>Asistencia</th>
+						<th>Ausencia</th>
+						<th>Porcentaje Asistencia</th>
+						<th>Porcentaje Ausentismo</th>
+					</tr>
+				</thead>
+				<tbody>
+					@for (row of resultados(); track $index) {
+						<tr>
+							<td>{{ row.curso }}</td>
+							<td>{{ row.total }}</td>
+							<td>{{ row.asistencia }}</td>
+							<td>{{ row.ausencia }}</td>
+							<td>{{ row.pAsistencia }}</td>
+							<td>{{ row.pAusentismo }}</td>
+						</tr>
+					}
+
+					@if (!resultados().length) {
+						<tr>
+							<td class="empty" colspan="6">Sin datos para mostrar</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<section class="card" aria-label="Gráfica de ausentismo por programa">
+		<h2 class="card-title">Porcentaje de Ausentismo por Programa</h2>
+
+		@if (ausentismoPorPrograma().length) {
+			<div class="chart">
+				<div class="donut">
+					<canvas #donutCanvas aria-label="Gráfica de ausentismo por programa" role="img"></canvas>
+				</div>
+
+				<div class="legend" aria-label="Leyenda">
+					@for (item of ausentismoPorPrograma(); track item.programa) {
+						<div class="legend-item">
+							<span class="legend-dot" aria-hidden="true" [style.background]="item.color"></span>
+							<span class="legend-label">{{ item.programa }}</span>
+							<span class="legend-value">{{ item.valor }}%</span>
+						</div>
+					}
+				</div>
+			</div>
+		} @else {
+			<div class="empty-chart">
+				<div class="empty-title">Sin datos para graficar</div>
+				<div class="empty-subtitle">Presiona “Generar reporte” cuando tengas información real.</div>
+			</div>
+		}
+	</section>
+</div>

@@ -1,0 +1,31 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Mi perfil</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	@if (usuario()) {
+		<section class="card" aria-label="Información personal">
+			<div class="hero">
+				<div class="avatar" aria-hidden="true">{{ iniciales() }}</div>
+				<div class="hero-info">
+					<div class="hero-name">{{ nombre() }}</div>
+					<div class="hero-sub">{{ rolLabel() }} • {{ identificador() }}</div>
+				</div>
+			</div>
+
+			<h2 class="card-title">Información personal</h2>
+
+			<div class="lines">
+				@for (c of camposPrincipales(); track c.label) {
+					<div class="line"><strong>{{ c.label }}:</strong> {{ c.value }}</div>
+				}
+			</div>
+		</section>
+	} @else {
+		<section class="card" aria-label="Mi perfil">
+			<h2 class="card-title">Mi perfil</h2>
+			<div class="empty">No se encontró información del usuario. Inicia sesión para ver tu perfil.</div>
+		</section>
+	}
+</div>

@@ -1,1 +1,98 @@
-<p>asistencia-registrada works!</p>
+<section class="page">
+	<header class="page-header">
+		<h1 class="page-title">Asistencias registradas</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<section class="card">
+		<h2 class="card-title">Historial</h2>
+
+		<form class="form" [formGroup]="form">
+			<div class="grid">
+				<div class="field field-wide">
+					<label for="busqueda">Buscar por código o nombre</label>
+					<input
+						id="busqueda"
+						type="search"
+						placeholder="Buscar por código o nombre"
+						formControlName="busqueda"
+						autocomplete="off"
+					/>
+				</div>
+
+				<div class="field">
+					<label for="curso">Curso</label>
+					<select id="curso" formControlName="cursoId">
+						<option value="todos">Todos los cursos</option>
+						@for (c of cursos(); track c.id) {
+							<option [value]="'' + c.id">
+								{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}
+							</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<div class="hint">
+						@if (cargandoCursos()) {
+							<span class="loading">Cargando cursos...</span>
+						}
+					</div>
+				</div>
+			</div>
+		</form>
+
+		@if (cargandoHistorial()) {
+			<div class="loading">Cargando asistencias...</div>
+		}
+
+		@if (!cargandoHistorial()) {
+			<div class="table-responsive">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>ID Asistencia</th>
+							<th>Nombre completo</th>
+							<th>Curso</th>
+							<th>Fecha</th>
+							<th>Hora inicio</th>
+							<th>Hora fin</th>
+							<th>Estado</th>
+						</tr>
+					</thead>
+					<tbody>
+						@for (a of historialFiltrado(); track $index) {
+							<tr>
+								<td>{{ a.id_asistencia }}</td>
+								<td>{{ a.nombre_completo }}</td>
+								<td>{{ a.curso }}</td>
+								<td>{{ formatFecha(a.fecha) }}</td>
+								<td>{{ a.hora_inicio }}</td>
+								<td>{{ a.hora_fin || '—' }}</td>
+								<td>
+									<span
+										class="badge"
+										[class.presente]="(a.estado || '').toLowerCase() === 'presente'"
+										[class.ausente]="(a.estado || '').toLowerCase() === 'ausente'"
+									>
+										{{ a.estado || '—' }}
+									</span>
+								</td>
+							</tr>
+						}
+
+						@if (!historialFiltrado().length) {
+							<tr>
+								<td colspan="7" class="empty">Sin asistencias registradas</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</section>
+
+	@if (toastMessage(); as msg) {
+		<div class="toast" role="status" aria-live="polite">{{ msg }}</div>
+	}
+</section>

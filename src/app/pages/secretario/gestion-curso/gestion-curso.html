@@ -1,0 +1,155 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Gestionar curso</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<section class="card" aria-label="Registrar curso">
+		<h2 class="card-title">{{ editingId() ? 'Editar Curso' : 'Registrar Curso' }}</h2>
+
+		<form class="form" [formGroup]="form" (ngSubmit)="submit()">
+			<div class="grid">
+				<div class="field">
+					<label for="codigo">Código</label>
+					<input id="codigo" type="text" formControlName="codigo" placeholder="Ej: CUR001" />
+				</div>
+
+				<div class="field">
+					<label for="nombre">Nombre</label>
+					<input id="nombre" type="text" formControlName="nombre" placeholder="Ej: Español" />
+				</div>
+
+				<div class="field full">
+					<label for="descripcion">Descripción</label>
+					<textarea id="descripcion" rows="3" formControlName="descripcion" placeholder="Descripción del curso"></textarea>
+				</div>
+
+				<div class="field">
+					<label for="programa">Programa académico</label>
+					<select id="programa" formControlName="programaId">
+						<option value="" disabled>Seleccionar programa</option>
+						@for (p of programasAcademicos(); track p.id) {
+							<option [value]="p.id">{{ p.nombre }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="creditos">Créditos</label>
+					<input id="creditos" type="number" formControlName="creditos" placeholder="Ej: 3" />
+				</div>
+
+				<div class="field">
+					<label for="semestre">Semestre</label>
+					<input id="semestre" type="number" formControlName="semestre" placeholder="Ej: 1" />
+				</div>
+
+				<div class="field full">
+					<label for="horarios">Horario</label>
+					<select
+						id="horarios"
+						formControlName="horarioIds"
+						multiple
+						(change)="onHorarioSelectChange($event)"
+						[disabled]="loadingAux()"
+						aria-describedby="horarios-help"
+					>
+						<option value="-1">Sin horario</option>
+						@for (h of horarios(); track h.id) {
+							<option [value]="h.id">{{ horarioLabel(h) }}</option>
+						}
+					</select>
+					<p id="horarios-help" class="help">Puedes seleccionar varios (Ctrl + click).</p>
+				</div>
+			</div>
+
+			<div class="actions">
+				<button class="btn btn-cancel" type="button" (click)="cancel()">
+					<span class="btn-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="12" cy="12" r="10"></circle>
+							<path d="M15 9l-6 6M9 9l6 6"></path>
+						</svg>
+					</span>
+					Cancelar
+				</button>
+				<button class="btn btn-primary" type="submit" [disabled]="form.invalid">
+					<span class="btn-icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+							<polyline points="17 21 17 13 7 13 7 21"></polyline>
+							<polyline points="7 3 7 8 15 8"></polyline>
+						</svg>
+					</span>
+					{{ editingId() ? 'Actualizar' : 'Registrar' }}
+				</button>
+			</div>
+		</form>
+	</section>
+
+	<section class="card" aria-label="Cursos registrados">
+		<div class="card-head">
+			<h2 class="card-title">Cursos Registrados</h2>
+			<div class="filter">
+				<label for="search">Buscar:</label>
+				<input
+					id="search"
+					type="search"
+					[value]="query()"
+					(input)="setQuery(($any($event.target)).value)"
+					placeholder="Buscar por código o nombre"
+				/>
+			</div>
+		</div>
+
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Código</th>
+						<th>Nombre</th>
+						<th>Programa</th>
+						<th>Créditos</th>
+						<th>Semestre</th>
+						<th>Horario</th>
+						<th class="th-action">Action</th>
+					</tr>
+				</thead>
+				<tbody>
+					@if (loading()) {
+						<tr>
+							<td class="empty" colspan="7">Cargando…</td>
+						</tr>
+					} @else if (filteredCursos().length === 0) {
+						<tr>
+							<td class="empty" colspan="7">No hay cursos registrados</td>
+						</tr>
+					} @else {
+						@for (row of filteredCursos(); track (row.id ?? row.codigo)) {
+							<tr>
+								<td>{{ row.codigo }}</td>
+								<td>{{ row.nombre }}</td>
+								<td>{{ row.programaNombre ?? '—' }}</td>
+								<td>{{ row.creditos ?? '—' }}</td>
+								<td>{{ row.semestre ?? '—' }}</td>
+								<td>{{ cursoHorariosText(row) }}</td>
+								<td class="td-action">
+									<button class="icon-btn edit" type="button" (click)="edit(row)" [disabled]="!row.id" aria-label="Editar">
+										<svg viewBox="0 0 24 24" fill="currentColor">
+											<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+										</svg>
+									</button>
+									<button class="icon-btn delete" type="button" (click)="remove(row)" [disabled]="!row.id" aria-label="Eliminar">
+										<svg viewBox="0 0 24 24" fill="currentColor">
+											<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+										</svg>
+									</button>
+								</td>
+							</tr>
+						}
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+</div>

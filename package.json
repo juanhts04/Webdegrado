@@ -33,6 +33,9 @@
     "@angular/router": "^21.1.0",
     "@angular/ssr": "^21.1.4",
     "express": "^5.1.0",
+    "chart.js": "^4.5.0",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

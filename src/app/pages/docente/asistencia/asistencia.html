@@ -1,1 +1,158 @@
-<p>asistencia works!</p>
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Asistencia</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registro'" (click)="setActiveTab('registro')">
+			Registrar
+		</button>
+		<button
+			class="tab"
+			type="button"
+			[class.is-active]="activeTab() === 'registrados'"
+			(click)="setActiveTab('registrados')"
+		>
+			Asistencias registradas
+		</button>
+	</nav>
+
+	@if (activeTab() === 'registro') {
+		<section class="card" aria-label="Registro de asistencia">
+			<h2 class="card-title">Validación Biométrica</h2>
+			<p class="subtitle">Centra tu rostro en el recuadro.</p>
+
+			<form class="form" [formGroup]="registroForm">
+				<div class="grid">
+					<div class="field">
+						<label for="cursoRegistro">Curso</label>
+						<select id="cursoRegistro" formControlName="cursoId">
+							<option value="todos">Todos</option>
+							@for (c of cursos(); track c.id) {
+								<option [value]="'' + c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="datetime-live" aria-label="Fecha y hora en tiempo real">
+						<div class="datetime-date">{{ fechaActualLabel() }}</div>
+						<div class="datetime-time">{{ horaActualLabel() }}</div>
+					</div>
+				</div>
+			</form>
+
+			<div class="camera-actions">
+				<button
+					class="btn"
+					type="button"
+					[class.btn-primary]="!cameraOn()"
+					[class.btn-danger]="cameraOn()"
+					(click)="toggleCamera()"
+				>
+					{{ cameraOn() ? 'Detener cámara' : 'Activar cámara' }}
+				</button>
+			</div>
+
+			<div class="camera-frame" aria-label="Cámara">
+				<video #webVideo class="web-video" autoplay playsinline muted></video>
+				<canvas #webCanvas class="web-canvas"></canvas>
+				<div class="scan-line" aria-hidden="true"></div>
+
+				@if (!cameraOn()) {
+					<div class="camera-off">Cámara desactivada</div>
+				}
+			</div>
+
+			@if (resultado()) {
+				<div class="result" aria-label="Resultado">
+					@if (resultado()?.recognized) {
+						<div class="result-title ok">Reconocido</div>
+						<div class="result-line">{{ resultado()?.person }}</div>
+						<div class="result-line">{{ formatConfidence(resultado()?.confidence) }}</div>
+					} @else {
+						<div class="result-title fail">No reconocido</div>
+					}
+				</div>
+			}
+		</section>
+	}
+
+	@if (activeTab() === 'registrados') {
+		<section class="card" aria-label="Historial de asistencias">
+			<h2 class="card-title">Asistencias registradas</h2>
+
+			<form class="tools" [formGroup]="historialForm">
+				<div class="field field-wide">
+					<label for="busqueda">Buscar</label>
+					<input id="busqueda" type="search" placeholder="Buscar por código o nombre" formControlName="busqueda" />
+				</div>
+
+				<div class="grid">
+					<div class="field">
+						<label for="cursoHistorial">Curso</label>
+						<select id="cursoHistorial" formControlName="cursoId">
+							<option value="todos">Todos los cursos</option>
+							@for (c of cursos(); track c.id) {
+								<option [value]="'' + c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+				</div>
+			</form>
+
+			@if (cargandoHistorial()) {
+				<div class="loading">Cargando asistencias...</div>
+			}
+
+			@if (!cargandoHistorial()) {
+				<div class="table-responsive">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>ID Asistencia</th>
+								<th>Nombre completo</th>
+								<th>Curso</th>
+								<th>Fecha</th>
+								<th>Hora inicio</th>
+								<th>Hora fin</th>
+								<th>Estado</th>
+							</tr>
+						</thead>
+						<tbody>
+							@for (a of historialFiltrado(); track (a.id_asistencia ?? $index)) {
+								<tr>
+									<td>{{ a.id_asistencia ?? '—' }}</td>
+									<td>{{ a.nombre_completo ?? '—' }}</td>
+									<td>{{ a.curso ?? '—' }}</td>
+									<td>{{ formatFecha(a.fecha) }}</td>
+									<td>{{ a.hora_inicio ?? '—' }}</td>
+									<td>{{ a.hora_fin || '—' }}</td>
+									<td>
+										<span
+											class="badge"
+											[class.presente]="(a.estado || '').toString().toLowerCase() === 'presente'"
+											[class.ausente]="(a.estado || '').toString().toLowerCase() === 'ausente'"
+										>
+											{{ a.estado ?? '—' }}
+										</span>
+									</td>
+								</tr>
+							}
+
+							@if (!historialFiltrado().length) {
+								<tr>
+									<td colspan="7" class="empty">Sin asistencias registradas</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+
+	@if (toastMessage()) {
+		<div class="toast" role="status" aria-live="polite">{{ toastMessage() }}</div>
+	}
+</div>

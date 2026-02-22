@@ -66,6 +66,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 5205
+          },
           "configurations": {
             "production": {
               "buildTarget": "Webdegrado:build:production"

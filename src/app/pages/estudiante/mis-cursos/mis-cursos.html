@@ -1,1 +1,183 @@
-<p>mis-cursos works!</p>
+<section class="page">
+	<header class="page-header">
+		<h1 class="page-title">{{ pageTitle() }}</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button
+			type="button"
+			class="tab"
+			[class.is-active]="activeTab() === 'cursos'"
+			(click)="setTab('cursos')"
+		>
+			Mis Cursos
+		</button>
+		<button
+			type="button"
+			class="tab"
+			[class.is-active]="activeTab() === 'horario'"
+			(click)="setTab('horario')"
+		>
+			Horario
+		</button>
+	</nav>
+
+	@if (activeTab() === 'cursos') {
+		<section class="card">
+			<h2 class="card-title">Mis Cursos</h2>
+
+			@if (cargandoCursos()) {
+				<div class="loading">Cargando cursos...</div>
+			}
+
+			@if (!cargandoCursos()) {
+				<div class="course-grid">
+					@for (curso of cursos(); track curso.id) {
+						<article class="course-card">
+							<div class="course-top">
+								<div class="course-icon" aria-hidden="true">📘</div>
+								<div class="course-meta">
+									<div class="course-title">{{ curso.nombre }}</div>
+									<div class="course-chips">
+										<span class="course-chip">Código: {{ curso.codigo }}</span>
+										<span class="course-chip">Docente: {{ curso.docente }}</span>
+									</div>
+								</div>
+							</div>
+
+							<div class="course-progress">
+								<div class="course-progress-row">
+									<span class="course-progress-label">Progreso</span>
+									<span class="course-progress-value">{{ curso.progreso }}%</span>
+								</div>
+								<div class="progress">
+									<div class="progress-bar" [style.width.%]="curso.progreso"></div>
+								</div>
+							</div>
+						</article>
+					}
+				</div>
+
+				@if (!cursos().length) {
+					<div class="empty">No hay cursos para mostrar</div>
+				}
+			}
+		</section>
+	}
+
+	@if (activeTab() === 'horario') {
+		<section class="card">
+			<h2 class="card-title">Horario académico</h2>
+
+			@if (cargandoHorario()) {
+				<div class="loading">Cargando horario...</div>
+			}
+
+			<div class="table-responsive">
+				<table class="table schedule">
+					<thead>
+						<tr>
+							<th class="col-curso">Curso</th>
+							<th>Lun</th>
+							<th>Mar</th>
+							<th>Mié</th>
+							<th>Jue</th>
+							<th>Vie</th>
+							<th>Sáb</th>
+						</tr>
+					</thead>
+					<tbody>
+						@for (fila of horario(); track fila.curso) {
+							<tr>
+								<td class="col-curso"><div class="curso-name">{{ fila.curso }}</div></td>
+								<td>
+									<div class="slot" [class.empty]="!fila.lunes">
+										@if (fila.lunes) {
+											<div class="slot-time">{{ slotTime(fila.lunes) }}</div>
+											@if (slotPlace(fila.lunes)) {
+												<div class="slot-place">{{ slotPlace(fila.lunes) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+								<td>
+									<div class="slot" [class.empty]="!fila.martes">
+										@if (fila.martes) {
+											<div class="slot-time">{{ slotTime(fila.martes) }}</div>
+											@if (slotPlace(fila.martes)) {
+												<div class="slot-place">{{ slotPlace(fila.martes) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+								<td>
+									<div class="slot" [class.empty]="!fila.miercoles">
+										@if (fila.miercoles) {
+											<div class="slot-time">{{ slotTime(fila.miercoles) }}</div>
+											@if (slotPlace(fila.miercoles)) {
+												<div class="slot-place">{{ slotPlace(fila.miercoles) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+								<td>
+									<div class="slot" [class.empty]="!fila.jueves">
+										@if (fila.jueves) {
+											<div class="slot-time">{{ slotTime(fila.jueves) }}</div>
+											@if (slotPlace(fila.jueves)) {
+												<div class="slot-place">{{ slotPlace(fila.jueves) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+								<td>
+									<div class="slot" [class.empty]="!fila.viernes">
+										@if (fila.viernes) {
+											<div class="slot-time">{{ slotTime(fila.viernes) }}</div>
+											@if (slotPlace(fila.viernes)) {
+												<div class="slot-place">{{ slotPlace(fila.viernes) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+								<td>
+									<div class="slot" [class.empty]="!fila.sabado">
+										@if (fila.sabado) {
+											<div class="slot-time">{{ slotTime(fila.sabado) }}</div>
+											@if (slotPlace(fila.sabado)) {
+												<div class="slot-place">{{ slotPlace(fila.sabado) }}</div>
+											}
+										} @else {
+											—
+										}
+									</div>
+								</td>
+							</tr>
+						}
+
+						@if (!horario().length) {
+							<tr>
+								<td class="empty" colspan="7">No hay horario para mostrar</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+
+	@if (toastMessage(); as msg) {
+		<div class="toast" role="status" aria-live="polite">{{ msg }}</div>
+	}
+</section>

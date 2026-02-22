@@ -1,0 +1,250 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Gestionar docente</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'gestion'" (click)="setTab('gestion')">Gestión docente</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registrados'" (click)="setTab('registrados')">Registrados</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'cursos'" (click)="setTab('cursos')">Cursos</button>
+	</nav>
+
+	@if (activeTab() === 'gestion') {
+		<section class="card" aria-label="Registrar docente">
+			<h2 class="card-title">{{ docenteEditandoId() ? 'Editar Docente' : 'Registrar Nuevo Docente' }}</h2>
+
+			<form class="form" [formGroup]="docenteForm" (ngSubmit)="submitDocente()">
+				<div class="grid">
+					<div class="field">
+						<label for="codigo">Código Docente</label>
+						<input id="codigo" type="text" formControlName="codigo" placeholder="Ej: DOC001" />
+					</div>
+
+					<div class="field">
+						<label for="nombre">Nombre Completo</label>
+						<input id="nombre" type="text" formControlName="nombre" placeholder="Nombres y Apellidos" />
+					</div>
+
+					<div class="field">
+						<label for="correo">Correo Institucional</label>
+						<input id="correo" type="email" formControlName="correo" placeholder="correo@institucion.edu" />
+					</div>
+
+					<div class="field">
+						<label for="password">Contraseña</label>
+						<input id="password" type="password" formControlName="password" placeholder="Crear contraseña" />
+						@if (docenteEditandoId()) {
+							<p class="help">(Opcional al editar)</p>
+						}
+					</div>
+
+					<div class="field">
+						<label for="programa">Programa Académico</label>
+						<select id="programa" formControlName="programaAcademicoId">
+							<option value="" disabled>Seleccionar programa</option>
+							@for (p of programasAcademicos(); track p.id) {
+								<option [value]="p.id">{{ p.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="field">
+						<label for="perfil">Descripción / Perfil</label>
+						<input id="perfil" type="text" formControlName="descripcionPerfil" placeholder="Perfil del docente" />
+					</div>
+				</div>
+
+				<div class="actions">
+					<button class="btn btn-cancel" type="button" (click)="cancelDocente()">Cancelar</button>
+					<button class="btn btn-primary" type="submit" [disabled]="docenteForm.invalid">
+						{{ docenteEditandoId() ? 'Actualizar Docente' : 'Registrar Docente' }}
+					</button>
+				</div>
+			</form>
+		</section>
+
+		<section class="card" aria-label="Asignar docente a curso">
+			<h2 class="card-title">Asignar Docente a Curso</h2>
+
+			<form class="form" [formGroup]="asignacionForm" (ngSubmit)="submitAsignacion()">
+				<div class="grid">
+					<div class="field">
+						<label for="curso">Seleccionar Curso</label>
+						<select id="curso" formControlName="cursoId">
+							<option value="" disabled>Seleccionar curso</option>
+							@for (c of cursos(); track c.id) {
+								<option [value]="c.id">{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="field">
+						<label for="docente">Seleccionar Docente</label>
+						<select id="docente" formControlName="docenteId">
+							<option value="" disabled>Seleccionar docente</option>
+							@for (d of docentes(); track d.id) {
+								<option [value]="d.id">{{ d.codigo }} - {{ d.nombre }}</option>
+							}
+						</select>
+					</div>
+				</div>
+
+				<div class="actions">
+					<button class="btn btn-cancel" type="button" (click)="resetAsignacion()">Cancelar</button>
+					<button class="btn btn-primary" type="submit" [disabled]="asignacionForm.invalid">
+						{{ asignacionEditandoId() ? 'Actualizar asignación' : 'Asignar' }}
+					</button>
+				</div>
+			</form>
+		</section>
+	}
+
+	@if (activeTab() === 'registrados') {
+		<section class="card" aria-label="Docentes registrados">
+			<div class="card-head">
+				<h2 class="card-title">Docentes Registrados</h2>
+				<div class="filter">
+					<label for="searchDoc">Buscar:</label>
+					<input
+						id="searchDoc"
+						type="search"
+						[value]="busquedaDocentes()"
+						(input)="setBusquedaDocentes(($any($event.target)).value)"
+						placeholder="Buscar por código o nombre"
+					/>
+				</div>
+			</div>
+
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Código</th>
+							<th>Nombre</th>
+							<th>Correo</th>
+							<th>Programa</th>
+							<th>Perfil</th>
+							<th class="th-action">Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						@if (loadingDocentes()) {
+							<tr>
+								<td class="empty" colspan="6">Cargando…</td>
+							</tr>
+						} @else if (filteredDocentes().length === 0) {
+							<tr>
+								<td class="empty" colspan="6">No hay docentes registrados</td>
+							</tr>
+						} @else {
+							@for (row of filteredDocentes(); track row.id) {
+								<tr>
+									<td>{{ row.codigo }}</td>
+									<td>{{ row.nombre }}</td>
+									<td>{{ row.correo }}</td>
+									<td>{{ row.programaNombre ?? '—' }}</td>
+									<td>{{ row.descripcionPerfil ?? '—' }}</td>
+									<td class="td-action">
+										<button class="icon-btn edit" type="button" (click)="editDocente(row)" aria-label="Editar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+											</svg>
+										</button>
+										<button class="icon-btn delete" type="button" (click)="removeDocente(row.id)" aria-label="Eliminar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+											</svg>
+										</button>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+
+	@if (activeTab() === 'cursos') {
+		<section class="card" aria-label="Cursos asignados">
+			<h2 class="card-title">Cursos asignados</h2>
+
+			<div class="grid">
+				<div class="field">
+					<label for="docCursos">Seleccionar docente</label>
+					<select id="docCursos" [value]="docenteCursosId() ?? ''" (change)="onDocenteCursosChange(($any($event.target)).value)">
+						<option value="" disabled>Seleccionar docente</option>
+						@for (d of docentes(); track d.id) {
+							<option [value]="d.id">{{ d.codigo }} - {{ d.nombre }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="searchCursos">Buscar</label>
+					<input
+						id="searchCursos"
+						type="search"
+						[value]="busquedaCursosAsignados()"
+						(input)="setBusquedaCursosAsignados(($any($event.target)).value)"
+						placeholder="Buscar curso por código o nombre"
+						[disabled]="!docenteCursosId()"
+					/>
+				</div>
+			</div>
+
+			@if (!docenteCursosId()) {
+				<p class="empty">Selecciona un docente para ver sus cursos asignados</p>
+			} @else if (loadingCursosAsignados()) {
+				<p class="empty">Cargando cursos asignados…</p>
+			} @else {
+				<p class="count">Total asignados: <strong>{{ filteredCursosAsignados().length }}</strong></p>
+
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Código</th>
+								<th>Nombre</th>
+								<th>Programa</th>
+								<th>Créditos</th>
+								<th>Descripción</th>
+								<th class="th-action">Action</th>
+							</tr>
+						</thead>
+						<tbody>
+							@if (filteredCursosAsignados().length === 0) {
+								<tr>
+									<td class="empty" colspan="6">No hay cursos asignados para este docente</td>
+								</tr>
+							} @else {
+								@for (row of filteredCursosAsignados(); track row.id) {
+									<tr>
+										<td>{{ row.codigo ?? '—' }}</td>
+										<td>{{ row.nombre }}</td>
+										<td>{{ row.programaNombre ?? '—' }}</td>
+										<td>{{ row.creditos ?? '—' }}</td>
+										<td>{{ row.descripcion ?? '—' }}</td>
+										<td class="td-action">
+											<button class="icon-btn edit" type="button" (click)="editCursoAsignado(row)" [disabled]="!row.asignacionId" aria-label="Editar">
+												<svg viewBox="0 0 24 24" fill="currentColor">
+													<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+												</svg>
+											</button>
+											<button class="icon-btn delete" type="button" (click)="removeCursoAsignado(row)" [disabled]="!row.asignacionId" aria-label="Eliminar">
+												<svg viewBox="0 0 24 24" fill="currentColor">
+													<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+												</svg>
+											</button>
+										</td>
+									</tr>
+								}
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+</div>

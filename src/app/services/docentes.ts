@@ -39,8 +39,18 @@ export class DocenteService {
   }
 
   asignarCurso(data: { docenteId: number; cursoId: number }): Observable<any> {
-  return this.http.post(`${this.apiUrl}/asignar-docente-curso`, data);
-}
+		return this.http.post(`${this.apiUrl}/asignar-docente-curso`, data);
+	}
+
+  /** 🔹 ACTUALIZAR asignación docente-curso */
+  actualizarAsignacion(asignacionId: number, data: { docenteId: number; cursoId: number }): Observable<any> {
+    return this.http.put(`${this.apiUrl}/asignar-docente-curso/${asignacionId}`, data);
+  }
+
+  /** 🔹 ELIMINAR asignación docente-curso */
+  eliminarAsignacion(asignacionId: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/asignar-docente-curso/${asignacionId}`);
+  }
 
   /** 🔹 LISTAR cursos asignados a un docente */
   listarCursosAsignados(docenteId: number): Observable<any[]> {

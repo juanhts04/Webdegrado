@@ -37,4 +37,19 @@ export class SalonService {
   actualizar(id: number, salon: any): Observable<any> {
     return this.http.put(`${this.apiUrl}/salones/${id}`, salon);
   }
+
+  // 🔹 LISTAR asignaciones salón-curso
+  listarSalonCurso(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/salon-curso`);
+  }
+
+  // 🔹 ASIGNAR salón a curso
+  asignarSalonACurso(data: { cursoId: number; salonId: number }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/salon-curso`, data);
+  }
+
+  // 🔹 ELIMINAR asignación
+  desasignarSalonDeCurso(asignacionId: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/salon-curso/${asignacionId}`);
+  }
 }

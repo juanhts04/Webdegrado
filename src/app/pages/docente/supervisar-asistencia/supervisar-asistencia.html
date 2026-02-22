@@ -1,1 +1,158 @@
-<p>supervisar-asistencia works!</p>
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Supervisar asistencia</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'supervisar'" (click)="setTab('supervisar')">
+			Supervisar
+		</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registrados'" (click)="setTab('registrados')">
+			Registrados
+		</button>
+	</nav>
+
+	@if (activeTab() === 'supervisar') {
+		<section class="card" aria-label="Supervisión de asistencias">
+			<h2 class="card-title">Supervisión de Asistencias</h2>
+
+			<form class="form" [formGroup]="filtrosForm">
+				<div class="grid">
+					<div class="field">
+						<label for="curso">Curso</label>
+						<select id="curso" formControlName="curso">
+							<option value="todos">Todos</option>
+							@for (c of cursosDisponibles(); track c.id) {
+								<option [value]="'' + c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="field">
+						<label for="fecha">Fecha</label>
+						<div class="date-row">
+							<input id="fecha" type="date" formControlName="fecha" />
+							<button class="icon-btn" type="button" (click)="limpiarFecha()" [disabled]="!filtrosForm.controls.fecha.value" aria-label="Limpiar fecha">
+								×
+							</button>
+						</div>
+					</div>
+				</div>
+			</form>
+
+			<div class="stats" aria-label="Estadísticas">
+				<div class="stat">
+					<div class="stat-number">{{ stats().total }}</div>
+					<div class="stat-label">Total</div>
+				</div>
+				<div class="stat">
+					<div class="stat-number">{{ stats().presentes }}</div>
+					<div class="stat-label">Presentes</div>
+				</div>
+				<div class="stat">
+					<div class="stat-number">{{ stats().ausentes }}</div>
+					<div class="stat-label">Ausentes</div>
+				</div>
+			</div>
+		</section>
+	}
+
+	@if (activeTab() === 'registrados') {
+		<section class="card" aria-label="Asistencias registradas">
+			<div class="card-head">
+				<h2 class="card-title">Asistencias registradas</h2>
+			</div>
+
+			<form class="tools" [formGroup]="filtrosForm">
+				<div class="field field-wide">
+					<label for="busqueda">Buscar</label>
+					<input
+						id="busqueda"
+						type="search"
+						placeholder="Buscar por código o nombre"
+						[value]="busquedaRegistradas()"
+						(input)="setBusqueda(($any($event.target)).value)"
+					/>
+				</div>
+
+				<div class="grid">
+					<div class="field">
+						<label for="curso2">Curso</label>
+						<select id="curso2" formControlName="curso">
+							<option value="todos">Todos los cursos</option>
+							@for (c of cursosDisponibles(); track c.id) {
+								<option [value]="'' + c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+							}
+						</select>
+					</div>
+
+					<div class="field">
+						<label for="fecha2">Fecha</label>
+						<div class="date-row">
+							<input id="fecha2" type="date" formControlName="fecha" />
+							<button class="icon-btn" type="button" (click)="limpiarFecha()" [disabled]="!filtrosForm.controls.fecha.value" aria-label="Limpiar fecha">
+								×
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="chips" aria-label="Filtro por estado">
+					<button class="chip" type="button" [class.is-active]="filtroEstado() === 'todos'" (click)="setFiltroEstado('todos')">Todos</button>
+					<button class="chip" type="button" [class.is-active]="filtroEstado() === 'Presente'" (click)="setFiltroEstado('Presente')">Presente</button>
+					<button class="chip" type="button" [class.is-active]="filtroEstado() === 'Ausente'" (click)="setFiltroEstado('Ausente')">Ausente</button>
+				</div>
+			</form>
+
+			@if (cargandoAsistencias()) {
+				<div class="loading">Cargando asistencias...</div>
+			}
+
+			@if (!cargandoAsistencias()) {
+				<div class="table-responsive">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>ID Asistencia</th>
+								<th>Nombre completo</th>
+								<th>Curso</th>
+								<th>Fecha</th>
+								<th>Hora inicio</th>
+								<th>Hora fin</th>
+								<th>Estado</th>
+							</tr>
+						</thead>
+						<tbody>
+							@for (est of asistenciasFiltradas(); track (est.id_asistencia ?? $index)) {
+								<tr>
+									<td>{{ est.id_asistencia ?? '—' }}</td>
+									<td>{{ est.nombre_completo ?? '—' }}</td>
+									<td>{{ est.curso ?? '—' }}</td>
+									<td>{{ formatFecha(est.fecha) || '—' }}</td>
+									<td>{{ est.hora_inicio ?? '—' }}</td>
+									<td>{{ est.hora_fin || '—' }}</td>
+									<td>
+										<span
+											class="badge"
+											[class.presente]="(est.estado || '').toString().toLowerCase() === 'presente'"
+											[class.ausente]="(est.estado || '').toString().toLowerCase() === 'ausente'"
+										>
+											{{ est.estado ?? '—' }}
+										</span>
+									</td>
+								</tr>
+							}
+
+							@if (!asistenciasFiltradas().length) {
+								<tr>
+									<td colspan="7" class="empty">Sin resultados para los filtros</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+</div>

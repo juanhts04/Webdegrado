@@ -1,4 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { PLATFORM_ID } from '@angular/core';
 
 import { Asistencia } from './asistencia';
 
@@ -8,7 +11,12 @@ describe('Asistencia', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Asistencia]
+      imports: [Asistencia],
+      providers: [
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: PLATFORM_ID, useValue: 'server' },
+      ],
     })
     .compileComponents();
 

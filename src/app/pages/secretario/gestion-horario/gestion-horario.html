@@ -1,0 +1,130 @@
+<div class="page">
+	<header class="page-header">
+		<h1 class="page-title">Gestionar horario</h1>
+		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
+	</header>
+
+	<nav class="tabs" aria-label="Secciones">
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registro'" (click)="setTab('registro')">Registrar</button>
+		<button class="tab" type="button" [class.is-active]="activeTab() === 'registrados'" (click)="setTab('registrados')">Listado</button>
+	</nav>
+
+	@if (activeTab() === 'registro') {
+		<section class="card" aria-label="Registro de horario">
+			<h2 class="card-title">{{ editingId() ? 'Editar Horario' : 'Registrar Horarios' }}</h2>
+
+			<form class="form" [formGroup]="form" (ngSubmit)="submit()">
+				<div class="grid">
+					<div class="field">
+						<label for="codigo">Código</label>
+						<input id="codigo" type="text" formControlName="codigo" placeholder="Ej: H001" />
+						@if (editingId()) {
+							<p class="help">(No editable en modo edición)</p>
+						}
+					</div>
+
+					<div class="field">
+						<label for="dias">Días</label>
+						<select id="dias" multiple formControlName="dias" (change)="onDiasSelectChange($event)" aria-describedby="dias-help">
+							@for (d of diasOptions; track d) {
+								<option [value]="d">{{ d }}</option>
+							}
+						</select>
+						<p id="dias-help" class="help">{{ editingId() ? 'Al editar, se toma solo 1 día.' : 'Puedes seleccionar varios días.' }}</p>
+					</div>
+
+					<div class="field">
+						<label for="inicio">Hora Inicio</label>
+						<input id="inicio" type="time" formControlName="hora_inicio" placeholder="--:--" />
+					</div>
+
+					<div class="field">
+						<label for="fin">Hora Fin</label>
+						<input id="fin" type="time" formControlName="hora_fin" placeholder="--:--" />
+					</div>
+				</div>
+
+				<div class="actions">
+					<button class="btn btn-cancel" type="button" (click)="resetForm()">Cancelar</button>
+					<button class="btn btn-primary" type="submit" [disabled]="form.invalid">
+						{{ editingId() ? 'Actualizar' : 'Registrar' }}
+					</button>
+				</div>
+			</form>
+		</section>
+	}
+
+	@if (activeTab() === 'registrados') {
+		<section class="card" aria-label="Horarios registrados">
+			<div class="card-head">
+				<h2 class="card-title">Horarios Registrados</h2>
+				<div class="filter">
+					<label for="search">Buscar:</label>
+					<input
+						id="search"
+						type="search"
+						[value]="busqueda()"
+						(input)="setBusqueda(($any($event.target)).value)"
+						placeholder="Buscar por código, día, docente, salón o curso"
+					/>
+				</div>
+			</div>
+
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Curso</th>
+							<th>Código</th>
+							<th>Día</th>
+							<th>Inicio</th>
+							<th>Fin</th>
+							<th>Docente</th>
+							<th>Salón</th>
+							<th class="th-action">Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						@if (loading()) {
+							<tr>
+								<td class="empty" colspan="8">Cargando…</td>
+							</tr>
+						} @else if (horarios().length === 0) {
+							<tr>
+								<td class="empty" colspan="8">No hay horarios registrados</td>
+							</tr>
+						} @else if (filteredHorarios().length === 0) {
+							<tr>
+								<td class="empty" colspan="8">Sin resultados para la búsqueda</td>
+							</tr>
+						} @else {
+							@for (row of filteredHorarios(); track row.id) {
+								<tr>
+									<td>{{ cursoDisplay(row) }}</td>
+									<td>{{ row.codigo }}</td>
+									<td>{{ row.dia ?? '—' }}</td>
+									<td>{{ row.hora_inicio ?? '—' }}</td>
+									<td>{{ row.hora_fin ?? '—' }}</td>
+									<td>{{ docenteDisplay(row) }}</td>
+									<td>{{ salonDisplay(row) }}</td>
+									<td class="td-action">
+										<button class="icon-btn edit" type="button" (click)="edit(row)" aria-label="Editar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l8.06-8.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z"></path>
+											</svg>
+										</button>
+										<button class="icon-btn delete" type="button" (click)="remove(row.id)" aria-label="Eliminar">
+											<svg viewBox="0 0 24 24" fill="currentColor">
+												<path d="M6 7h12v14H6V7zm3-4h6l1 1h4v2H4V4h4l1-1z"></path>
+											</svg>
+										</button>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+</div>
