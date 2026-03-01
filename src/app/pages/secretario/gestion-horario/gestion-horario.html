@@ -1,7 +1,6 @@
 <div class="page">
 	<header class="page-header">
 		<h1 class="page-title">Gestionar horario</h1>
-		<button class="btn-logout" type="button" (click)="logout()">Cerrar sesión</button>
 	</header>
 
 	<nav class="tabs" aria-label="Secciones">
@@ -24,12 +23,39 @@
 					</div>
 
 					<div class="field">
-						<label for="dias">Días</label>
-						<select id="dias" multiple formControlName="dias" (change)="onDiasSelectChange($event)" aria-describedby="dias-help">
-							@for (d of diasOptions; track d) {
-								<option [value]="d">{{ d }}</option>
-							}
-						</select>
+						<label>Días</label>
+						<div class="dias-select" aria-describedby="dias-help">
+							<div class="dias-chips" [class.is-empty]="selectedDias().length === 0">
+								@if (selectedDias().length === 0) {
+									<span class="chip-placeholder">Ningún día seleccionado</span>
+								} @else {
+									@for (d of selectedDias(); track d) {
+										<span class="chip">
+											<span class="chip-label">{{ d }}</span>
+											<button class="chip-x" type="button" (click)="removeDia(d)" aria-label="Quitar día">×</button>
+										</span>
+									}
+								}
+							</div>
+
+							<div class="dias-toolbar">
+								<span class="mini-hint">{{ editingId() ? 'En edición solo se permite 1 día.' : 'Selecciona uno o varios con clic' }}</span>
+							</div>
+
+							<div
+								class="dias-options"
+								role="listbox"
+								[attr.aria-multiselectable]="editingId() ? 'false' : 'true'"
+								aria-label="Lista de días"
+							>
+								@for (d of diasOptions; track d) {
+									<label class="dias-option" [class.is-selected]="isDiaSelected(d)">
+										<input type="checkbox" [checked]="isDiaSelected(d)" (change)="toggleDia(d)" />
+										<span class="dias-option-text">{{ d }}</span>
+									</label>
+								}
+							</div>
+						</div>
 						<p id="dias-help" class="help">{{ editingId() ? 'Al editar, se toma solo 1 día.' : 'Puedes seleccionar varios días.' }}</p>
 					</div>
 
@@ -81,7 +107,7 @@
 							<th>Fin</th>
 							<th>Docente</th>
 							<th>Salón</th>
-							<th class="th-action">Action</th>
+							<th class="th-action">Acciones</th>
 						</tr>
 					</thead>
 					<tbody>

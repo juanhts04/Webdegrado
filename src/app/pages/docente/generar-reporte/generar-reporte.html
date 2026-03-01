@@ -1,1 +1,103 @@
-<p>generar-reporte works!</p>
+<section class="page">
+	<header class="page-header">
+		<h1 class="page-title">Generar Reporte</h1>
+	</header>
+
+	<section class="card" aria-label="Generar reportes de asistencia">
+		<h2 class="card-title">Generar Reportes de Asistencia</h2>
+
+		<form class="form" [formGroup]="filtrosForm">
+			<div class="grid">
+				<div class="field">
+					<label for="cursoSelect">Curso</label>
+					<select
+						id="cursoSelect"
+						formControlName="curso"
+					>
+						<option value="todos">Todos</option>
+						@for (c of cursos(); track c.id) {
+							<option [value]="'' + c.id">{{ c.codigo ? (c.codigo + ' - ') : '' }}{{ c.nombre }}</option>
+						}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="tipoSelect">Seleccionar tipo de reporte</label>
+					<select id="tipoSelect" formControlName="tipoReporte">
+						<option value="">General</option>
+						<option value="Asistencia Mensual">Asistencia Mensual</option>
+						<option value="Asistencia Semanal">Asistencia Semanal</option>
+						<option value="Asistencia Diaria">Asistencia Diaria</option>
+					</select>
+				</div>
+			</div>
+
+			<div class="actions" aria-label="Acciones">
+				<button
+					type="button"
+					class="btn btn-primary"
+					(click)="generarReporte()"
+					[disabled]="cargandoReporte() || cargandoCursos()"
+				>
+					Generar reporte
+				</button>
+				<button type="button" class="btn btn-success" (click)="exportarPDF()">Exportar PDF</button>
+			</div>
+		</form>
+	</section>
+
+	<section class="card table-card" aria-label="Resultados">
+		<h2 class="card-title">Resultados</h2>
+
+		@if (cargandoReporte()) {
+			<div class="loading">Cargando reporte...</div>
+		}
+
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>ID Asistencia</th>
+						<th>Nombre Completo</th>
+						<th>Curso</th>
+						<th>Fecha</th>
+						<th>Hora inicio</th>
+						<th>Hora fin</th>
+						<th>Estado</th>
+					</tr>
+				</thead>
+				<tbody>
+					@for (row of reporteFiltrado(); track row.id_asistencia ?? $index) {
+						<tr>
+							<td>{{ row.id_asistencia ?? '—' }}</td>
+							<td>{{ row.nombre_completo ?? '—' }}</td>
+							<td>{{ row.curso ?? '—' }}</td>
+							<td>{{ formatFecha(row.fecha) }}</td>
+							<td>{{ row.hora_inicio ?? '—' }}</td>
+							<td>{{ row.hora_fin || '—' }}</td>
+							<td>
+								<span
+									class="badge"
+									[class.presente]="isEstado(row.estado, 'presente')"
+									[class.ausente]="isEstado(row.estado, 'ausente')"
+								>
+									{{ row.estado ?? '—' }}
+								</span>
+							</td>
+						</tr>
+					}
+
+					@if (!cargandoReporte() && !reporteFiltrado().length) {
+						<tr>
+							<td class="empty" colspan="7">Sin asistencias registradas</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	@if (toast()) {
+		<div class="toast" role="status" aria-live="polite">{{ toast() }}</div>
+	}
+</section>

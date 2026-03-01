@@ -34,7 +34,13 @@ export class Jcprincipal {
   readonly activeKey = signal<string>('supervisar-asistencia');
   readonly currentUrl = signal<string>(this.router.url);
 
+	readonly sidebarOpen = signal<boolean>(false);
+  readonly sidebarCollapsed = signal<boolean>(false);
+  readonly isMobile = signal<boolean>(false);
+
   constructor() {
+    this.setupResponsiveSidebar();
+
     this.router.events
       .pipe(
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -44,6 +50,28 @@ export class Jcprincipal {
         this.currentUrl.set(e.urlAfterRedirects);
         this.syncActiveKeyFromUrl(e.urlAfterRedirects);
       });
+  }
+
+  private setupResponsiveSidebar() {
+    if (!this.isBrowser) return;
+
+    const mql = window.matchMedia('(max-width: 640px)');
+    const update = (matches: boolean) => {
+      this.isMobile.set(matches);
+      this.sidebarOpen.set(false);
+    };
+
+    update(mql.matches);
+
+    const handler = (e: MediaQueryListEvent) => update(e.matches);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handler);
+      this.destroyRef.onDestroy(() => mql.removeEventListener('change', handler));
+    } else {
+      // Safari legacy
+      mql.addListener(handler);
+      this.destroyRef.onDestroy(() => mql.removeListener(handler));
+    }
   }
 
   private syncActiveKeyFromUrl(url: string) {
@@ -77,11 +105,14 @@ export class Jcprincipal {
     if (url.includes('/jcprincipal/gestion-horario')) {
       this.activeKey.set('gestionar-horario');
     }
-		if (url.includes('/jcprincipal/gestion-salon')) {
+    if (url.includes('/jcprincipal/gestion-salon')) {
 			this.activeKey.set('gestionar-salon');
 		}
+    if (url.includes('/jcprincipal/generar-reporte')) {
+      this.activeKey.set('generar-reporte-docente');
+    }
     if (url.includes('/jcprincipal/sec-generar-reporte')) {
-      this.activeKey.set('generar-reporte');
+      this.activeKey.set('generar-reporte-secretario');
     }
     if (url.includes('/jcprincipal/mi-perfil')) {
       this.activeKey.set('mi-perfil');
@@ -133,11 +164,12 @@ export class Jcprincipal {
     { key: 'registrar-secretario', label: 'Registrar Secretario', badge: 'RS', icon: 'users' as const },
     { key: 'registro-biometrico', label: 'Registro Biometrico', badge: 'RB', icon: 'id' as const },
     { key: 'asistencias-registradas', label: 'Asistencias registradas', badge: 'AR', icon: 'list' as const },
+    { key: 'generar-reporte-docente', label: 'Generar Reporte (Docente)', badge: 'GRD', icon: 'file' as const },
     { key: 'gestionar-curso', label: 'Gestionar Curso', badge: 'GC', icon: 'settings' as const },
     { key: 'gestionar-docente', label: 'Gestionar Docente', badge: 'GD', icon: 'users' as const },
     { key: 'gestionar-horario', label: 'Gestionar Horario', badge: 'GH', icon: 'clock' as const },
     { key: 'gestionar-salon', label: 'Gestionar Salón', badge: 'GS', icon: 'building' as const },
-    { key: 'generar-reporte', label: 'Generar Reporte', badge: 'GR', icon: 'file' as const },
+    { key: 'generar-reporte-secretario', label: 'Generar Reporte (Secretario)', badge: 'GRS', icon: 'file' as const },
     { key: 'mi-perfil', label: 'Mi Perfil', badge: 'MP', icon: 'user' as const },
   ] as const;
 
@@ -147,6 +179,7 @@ export class Jcprincipal {
   });
 
   selectItem(key: string) {
+		this.closeSidebar();
     this.activeKey.set(key);
 
     if (key === 'supervisar-asistencia') {
@@ -204,7 +237,12 @@ export class Jcprincipal {
       return;
     }
 
-    if (key === 'generar-reporte') {
+    if (key === 'generar-reporte-docente') {
+      this.router.navigateByUrl('/jcprincipal/generar-reporte');
+      return;
+    }
+
+    if (key === 'generar-reporte-secretario') {
       this.router.navigateByUrl('/jcprincipal/sec-generar-reporte');
       return;
     }
@@ -224,4 +262,16 @@ export class Jcprincipal {
     }
     this.router.navigate(['/']);
   }
+
+	toggleSidebar() {
+    if (this.isMobile()) {
+      this.sidebarOpen.update((open) => !open);
+      return;
+    }
+    this.sidebarCollapsed.update((collapsed) => !collapsed);
+	}
+
+	closeSidebar() {
+		this.sidebarOpen.set(false);
+	}
 }

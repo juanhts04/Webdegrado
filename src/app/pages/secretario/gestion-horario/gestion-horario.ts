@@ -108,14 +108,32 @@ export class GestionHorario {
     this.busqueda.set(value);
   }
 
-  onDiasSelectChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    const selected = Array.from(select.selectedOptions).map((o) => o.value);
-    if (this.editingId() && selected.length > 1) {
-      this.form.controls.dias.setValue([selected[0]]);
+  selectedDias(): string[] {
+    return this.form.controls.dias.value;
+  }
+
+  isDiaSelected(dia: string): boolean {
+    return this.form.controls.dias.value.includes(dia);
+  }
+
+  toggleDia(dia: string): void {
+    const current = this.form.controls.dias.value;
+    const isSelected = current.includes(dia);
+
+    if (this.editingId()) {
+      this.form.controls.dias.setValue(isSelected ? [] : [dia]);
       return;
     }
-    this.form.controls.dias.setValue(selected);
+
+    this.form.controls.dias.setValue(
+      isSelected ? current.filter((d) => d !== dia) : [...current, dia],
+    );
+  }
+
+  removeDia(dia: string): void {
+    const current = this.form.controls.dias.value;
+    if (!current.includes(dia)) return;
+    this.form.controls.dias.setValue(current.filter((d) => d !== dia));
   }
 
   private pickFirstDefined(obj: any, keys: string[]) {

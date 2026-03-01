@@ -1,6 +1,22 @@
 <div class="layout">
-	<aside class="sidebar" aria-label="Menú lateral">
-		<nav class="nav" aria-label="Navegación principal">
+	<div class="shell" [class.is-collapsed]="sidebarCollapsed()">
+		<aside
+			id="sidebar"
+			class="sidebar"
+			aria-label="Menú lateral"
+			[class.is-open]="sidebarOpen()"
+		>
+			<div class="sidebar-top">
+				<div class="profile" aria-label="Perfil">
+					<div class="avatar" aria-hidden="true">{{ initials() }}</div>
+					<div class="profile-text">
+						<div class="name">{{ displayName() }}</div>
+						<div class="role">{{ displayRole() }}</div>
+					</div>
+				</div>
+			</div>
+
+			<nav class="nav" aria-label="Navegación principal">
 			@for (item of menuItems; track item.key) {
 				<button
 					class="nav-item"
@@ -88,26 +104,36 @@
 					<span class="label">{{ item.label }}</span>
 				</button>
 			}
-		</nav>
+			</nav>
 
-		<div class="sidebar-bottom">
-			<div class="profile" aria-label="Perfil">
-				<div class="avatar" aria-hidden="true">{{ initials() }}</div>
-				<div class="profile-text">
-					<div class="name">{{ displayName() }}</div>
-					<div class="role">{{ displayRole() }}</div>
-				</div>
+			<div class="sidebar-bottom">
+				<button class="logout" type="button" (click)="logout()">Cerrar sesión</button>
 			</div>
+		</aside>
 
-			<button class="logout" type="button" (click)="logout()">Cerrar sesión</button>
-		</div>
-	</aside>
+		<main class="content" aria-label="Contenido">
+			<button
+				class="menu-toggle"
+				type="button"
+				(click)="toggleSidebar()"
+				aria-label="Abrir o cerrar menú"
+				[attr.aria-expanded]="sidebarOpen()"
+				aria-controls="sidebar"
+			>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M4 6h16"></path>
+					<path d="M4 12h16"></path>
+					<path d="M4 18h16"></path>
+				</svg>
+			</button>
 
-	<main class="content" aria-label="Contenido">
-		@if (isHome()) {
-			<h1 class="title">{{ activeLabel() }}</h1>
-			<p class="hint">Selecciona una opción del menú.</p>
-		}
-		<router-outlet />
-	</main>
+			@if (isHome()) {
+				<h1 class="title">{{ activeLabel() }}</h1>
+				<p class="hint">Selecciona una opción del menú.</p>
+			}
+			<router-outlet />
+		</main>
+	</div>
+
+	<div class="backdrop" [class.is-open]="sidebarOpen()" (click)="closeSidebar()" aria-hidden="true"></div>
 </div>

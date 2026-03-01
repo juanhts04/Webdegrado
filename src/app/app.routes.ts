@@ -8,6 +8,7 @@ import { GestionDocente } from './pages/secretario/gestion-docente/gestion-docen
 import { GestionHorario } from './pages/secretario/gestion-horario/gestion-horario';
 import { GestionSalon } from './pages/secretario/gestion-salon/gestion-salon';
 import { SecGenerarReporte } from './pages/secretario/sec-generar-reporte/sec-generar-reporte';
+import { GenerarReporte } from './pages/docente/generar-reporte/generar-reporte';
 import { MiPerfil } from './mi-perfil/mi-perfil';
 import { SupervisarAsistencia } from './pages/docente/supervisar-asistencia/supervisar-asistencia';
 import { Asistencia } from './pages/docente/asistencia/asistencia';
@@ -74,10 +75,19 @@ export const routes: Routes = [
         component: SecGenerarReporte,
       },
       {
+        path: 'generar-reporte',
+        component: GenerarReporte,
+      },
+      {
         path: 'mi-perfil',
         component: MiPerfil,
       },
     ],
+  },
+  {
+    path: 'docente/generar-reporte',
+    redirectTo: 'jcprincipal/generar-reporte',
+    pathMatch: 'full',
   },
   {
     path: 'docente/supervisar-asistencia',

@@ -43,8 +43,6 @@ export class SupervisarAsistencia {
   private readonly asistenciaService = inject(AsistenciaService);
   private readonly docenteService = inject(DocenteService);
 
-  readonly activeTab = signal<'supervisar' | 'registrados'>('supervisar');
-
   readonly cargandoCursos = signal<boolean>(false);
   readonly cargandoAsistencias = signal<boolean>(false);
 
@@ -52,7 +50,6 @@ export class SupervisarAsistencia {
   readonly asistencias = signal<AsistenciaRow[]>([]);
 
   readonly busquedaRegistradas = signal<string>('');
-  readonly filtroEstado = signal<'todos' | 'Presente' | 'Ausente'>('todos');
 
   readonly filtrosForm = this.fb.nonNullable.group({
     curso: this.fb.nonNullable.control('todos'),
@@ -60,7 +57,6 @@ export class SupervisarAsistencia {
   });
 
   readonly asistenciasFiltradas = computed(() => {
-    const estado = this.filtroEstado();
     const q = this.busquedaRegistradas().trim().toLowerCase();
     const fecha = this.filtrosForm.controls.fecha.value.toString().trim();
 
@@ -68,10 +64,6 @@ export class SupervisarAsistencia {
 
     if (fecha) {
       data = data.filter((a) => this.formatFecha(a?.fecha) === fecha);
-    }
-
-    if (estado !== 'todos') {
-      data = data.filter((a) => (a?.estado ?? '').toString().toLowerCase() === estado.toLowerCase());
     }
 
     if (q) {
@@ -87,12 +79,44 @@ export class SupervisarAsistencia {
     return data;
   });
 
+  private normalizeText(value: unknown): string {
+    try {
+      const base = String(value ?? '').trim().toLowerCase();
+      const normalized = typeof (base as any).normalize === 'function' ? base.normalize('NFD') : base;
+      return normalized.replace(/[\u0300-\u036f]/g, '');
+    } catch {
+      return '';
+    }
+  }
+
   readonly stats = computed(() => {
     const rows = this.asistenciasFiltradas();
     const total = rows.length;
-    const presentes = rows.filter((a) => (a?.estado ?? '').toString().toLowerCase() === 'presente').length;
-    const ausentes = rows.filter((a) => (a?.estado ?? '').toString().toLowerCase() === 'ausente').length;
-    return { total, presentes, ausentes };
+
+    const completadas = rows.filter((a) => {
+      const estado = this.normalizeText(a?.estado);
+      return estado === 'presente' || estado.includes('complet') || estado.includes('asistencia completa');
+    }).length;
+
+    const parciales = rows.filter((a) => {
+      const estado = this.normalizeText(a?.estado);
+      return estado.includes('parcial');
+    }).length;
+
+    const ausentismo = rows.filter((a) => {
+      const estado = this.normalizeText(a?.estado);
+      return estado.includes('ausent');
+    }).length;
+
+    return {
+      total,
+      completadas,
+      parciales,
+      ausentismo,
+      // compatibilidad con versiones anteriores del template
+      presentes: completadas,
+      ausentes: parciales,
+    };
   });
 
   constructor() {
@@ -114,16 +138,8 @@ export class SupervisarAsistencia {
       });
   }
 
-  setTab(tab: 'supervisar' | 'registrados') {
-    this.activeTab.set(tab);
-  }
-
   setBusqueda(value: string) {
     this.busquedaRegistradas.set(value);
-  }
-
-  setFiltroEstado(value: 'todos' | 'Presente' | 'Ausente') {
-    this.filtroEstado.set(value);
   }
 
   limpiarFecha() {

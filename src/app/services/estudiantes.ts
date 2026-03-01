@@ -56,6 +56,10 @@ export class EstudiantesService {
     );
   }
 
+  eliminarAsignacionCurso(asignacionId: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/asignar-estudiante-curso/${asignacionId}`);
+  }
+
  /** 🔹 LISTAR estudiantes asignados a un curso */
 listarPorCurso(cursoId: number): Observable<any[]> {
   return this.http.get<any[]>(

@@ -2,6 +2,10 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ChangeDetectionStrategy, Component, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
+import { ProgramasAcademicosService } from '../../../services/programas-academicos';
+import { Secretario as SecretarioService } from '../../../services/secretario';
 
 type ProgramaAcademico = {
   id: string;
@@ -31,16 +35,16 @@ export class RegistrarSecretario {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly fb = inject(FormBuilder);
+  private readonly programasService = inject(ProgramasAcademicosService);
+  private readonly secretarioService = inject(SecretarioService);
 
-  readonly programasAcademicos = signal<ProgramaAcademico[]>([
-    { id: '1', nombre: 'Ingeniería de Software' },
-    { id: '2', nombre: 'Ingeniería de Sistemas' },
-    { id: '3', nombre: 'Administración' },
-  ]);
+  readonly programasAcademicos = signal<ProgramaAcademico[]>([]);
 
   readonly secretarios = signal<SecretarioRow[]>([]);
   readonly editingId = signal<string | null>(null);
   readonly query = signal<string>('');
+
+  readonly cargando = signal(false);
 
   readonly filteredSecretarios = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -65,6 +69,98 @@ export class RegistrarSecretario {
     password: this.fb.nonNullable.control('', [Validators.required]),
   });
 
+  ngOnInit(): void {
+    this.cargarDesdeApi();
+  }
+
+  private cargarDesdeApi(): void {
+    if (!this.isBrowser) return;
+    this.cargando.set(true);
+
+    forkJoin({
+      programas: this.programasService.listar().pipe(catchError(() => of([] as any[]))),
+      secretarios: this.secretarioService.listar().pipe(catchError(() => of([] as any[]))),
+    })
+      .pipe(take(1))
+      .subscribe({
+        next: ({ programas, secretarios }) => {
+          const programasList = (Array.isArray(programas) ? programas : []).map((p: any) => ({
+            id: String(p?.id ?? p?.programaAcademicoId ?? p?.programa_academico_id ?? ''),
+            nombre: String(p?.nombre ?? p?.programa ?? p?.name ?? '—'),
+          }))
+          .filter((p: ProgramaAcademico) => !!p.id);
+
+          const programaNombreById = new Map(programasList.map((p) => [p.id, p.nombre] as const));
+
+          const rowsRaw = Array.isArray(secretarios) ? secretarios : [];
+          const secretariosList: SecretarioRow[] = rowsRaw
+            .map((s: any) => {
+              const id = String(s?.id ?? s?.secretarioId ?? s?.id_secretario ?? s?.idSecretario ?? '');
+              if (!id) return null;
+
+              const codigo = String(s?.codigo ?? s?.codigo_secretario ?? s?.code ?? '').trim();
+              const nombreCompleto = String(
+                s?.nombreCompleto ?? s?.nombre_completo ?? s?.nombre ?? s?.fullName ?? s?.nombres ?? '',
+              ).trim();
+              const correo = String(s?.correo ?? s?.email ?? s?.mail ?? '').trim();
+              const programaAcademicoId = String(
+                s?.programaAcademicoId ?? s?.programa_academico_id ?? s?.programaId ?? s?.programa_id ?? '',
+              ).trim();
+
+              const programaNombreDirecto = String(
+                s?.programaNombre ?? s?.programa_nombre ?? s?.programa ?? s?.programaAcademico?.nombre ?? '',
+              ).trim();
+              const programaNombre = programaNombreDirecto || programaNombreById.get(programaAcademicoId) || '—';
+
+              const estadoRaw = (s?.estado ?? s?.activo ?? s?.status ?? 'Activo') as any;
+              const estadoText = String(estadoRaw).toLowerCase();
+              const estado: 'Activo' | 'Inactivo' =
+                estadoText.includes('inac') || estadoRaw === false || estadoRaw === 0 ? 'Inactivo' : 'Activo';
+
+              const fechaRaw = s?.fechaRegistro ?? s?.fecha_registro ?? s?.createdAt ?? s?.created_at ?? s?.fecha;
+              const fecha = this.formatFecha(fechaRaw);
+
+              return {
+                id,
+                codigo: codigo || '—',
+                nombreCompleto: nombreCompleto || '—',
+                correo: correo || '—',
+                programaAcademicoId,
+                programaNombre,
+                estado,
+                fechaRegistro: fecha,
+              };
+            })
+            .filter((x: SecretarioRow | null): x is SecretarioRow => !!x);
+
+          this.programasAcademicos.set(programasList);
+          this.secretarios.set(secretariosList);
+          this.cargando.set(false);
+        },
+        error: () => {
+          this.programasAcademicos.set([]);
+          this.secretarios.set([]);
+          this.cargando.set(false);
+        },
+      });
+  }
+
+  private formatFecha(value: any): string {
+    if (value === null || value === undefined) return '—';
+    if (value instanceof Date && Number.isFinite(value.getTime())) return value.toLocaleDateString('es-CO');
+    const text = String(value).trim();
+    if (!text) return '—';
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    const d = new Date(text);
+    if (Number.isFinite(d.getTime())) return d.toLocaleDateString('es-CO');
+    return text;
+  }
+
+  private toNumberId(id: string): number | null {
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
   setQuery(value: string) {
     this.query.set(value);
   }
@@ -83,28 +179,40 @@ export class RegistrarSecretario {
     }
 
     const value = this.form.getRawValue();
-    const programa = this.programasAcademicos().find((p) => p.id === value.programaAcademicoId);
-    const formatted = new Date().toLocaleDateString('es-CO');
 
-    const row: SecretarioRow = {
-      id: editing ?? crypto.randomUUID(),
+    const payload: any = {
       codigo: value.codigo.trim(),
-      nombreCompleto: value.nombreCompleto.trim(),
       correo: value.correo.trim(),
-      programaAcademicoId: value.programaAcademicoId,
-      programaNombre: programa?.nombre ?? '—',
-      estado: 'Activo',
-      fechaRegistro: formatted,
+      programaAcademicoId: Number.isFinite(Number(value.programaAcademicoId))
+        ? Number(value.programaAcademicoId)
+        : value.programaAcademicoId,
+      nombreCompleto: value.nombreCompleto.trim(),
+      ...(value.password?.trim() ? { password: value.password.trim() } : {}),
     };
 
     if (editing) {
-      this.secretarios.update((rows) => rows.map((r) => (r.id === editing ? row : r)));
-      this.editingId.set(null);
-    } else {
-      this.secretarios.update((rows) => [row, ...rows]);
+      const idNum = this.toNumberId(editing);
+      if (!idNum) {
+        return;
+      }
+      this.secretarioService
+        .actualizar(idNum, payload)
+        .pipe(take(1), catchError(() => of(null)))
+        .subscribe(() => {
+          this.editingId.set(null);
+          this.resetForm();
+          this.cargarDesdeApi();
+        });
+      return;
     }
 
-    this.resetForm();
+    this.secretarioService
+      .registrar(payload)
+      .pipe(take(1), catchError(() => of(null)))
+      .subscribe(() => {
+        this.resetForm();
+        this.cargarDesdeApi();
+      });
   }
 
   edit(id: string) {
@@ -123,10 +231,18 @@ export class RegistrarSecretario {
   }
 
   remove(id: string) {
-    this.secretarios.update((rows) => rows.filter((r) => r.id !== id));
-    if (this.editingId() === id) {
-      this.cancel();
-    }
+    const idNum = this.toNumberId(id);
+    if (!idNum) return;
+
+    this.secretarioService
+      .eliminar(idNum)
+      .pipe(take(1), catchError(() => of(null)))
+      .subscribe(() => {
+        if (this.editingId() === id) {
+          this.cancel();
+        }
+        this.cargarDesdeApi();
+      });
   }
 
   cancel() {

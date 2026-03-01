@@ -2,6 +2,10 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ChangeDetectionStrategy, Component, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
+import { EstudiantesService } from '../../../services/estudiantes';
+import { ProgramasAcademicosService } from '../../../services/programas-academicos';
 
 type ProgramaAcademico = {
   id: string;
@@ -33,19 +37,20 @@ export class RegistrarBiometria {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
   private readonly fb = inject(FormBuilder);
+  private readonly estudiantesService = inject(EstudiantesService);
+  private readonly programasService = inject(ProgramasAcademicosService);
 
+  readonly activeTab = signal<'registro' | 'registrados'>('registro');
   readonly placeholderAvatar = 'https://ionicframework.com/docs/img/demos/avatar.svg';
   readonly photoPreview = signal<string | null>(null);
   readonly editingId = signal<string | null>(null);
   readonly query = signal<string>('');
 
-  readonly programasAcademicos = signal<ProgramaAcademico[]>([
-    { id: '1', nombre: 'Ingeniería de Software' },
-    { id: '2', nombre: 'Ingeniería de Sistemas' },
-    { id: '3', nombre: 'Administración' },
-  ]);
+  readonly programasAcademicos = signal<ProgramaAcademico[]>([]);
 
   readonly registrados = signal<EstudianteBiometriaRow[]>([]);
+
+  readonly cargando = signal(false);
 
   readonly filteredEstudiantes = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -71,6 +76,108 @@ export class RegistrarBiometria {
     programaId: this.fb.nonNullable.control('', [Validators.required]),
     semestre: this.fb.nonNullable.control('', [Validators.required]),
   });
+
+  ngOnInit(): void {
+    this.cargarDesdeApi();
+  }
+
+  setTab(tab: 'registro' | 'registrados') {
+    this.activeTab.set(tab);
+  }
+
+  private cargarDesdeApi(): void {
+    if (!this.isBrowser) return;
+    this.cargando.set(true);
+
+    forkJoin({
+      programas: this.programasService.listar().pipe(catchError(() => of([] as any[]))),
+      estudiantes: this.estudiantesService.listar().pipe(catchError(() => of([] as any[]))),
+    })
+      .pipe(take(1))
+      .subscribe({
+        next: ({ programas, estudiantes }) => {
+          const programasList = (Array.isArray(programas) ? programas : [])
+            .map((p: any) => ({
+              id: String(p?.id ?? p?.programaId ?? p?.programa_id ?? ''),
+              nombre: String(p?.nombre ?? p?.programa ?? p?.name ?? '—'),
+            }))
+            .filter((p: ProgramaAcademico) => !!p.id);
+
+          const programaNombreById = new Map(programasList.map((p) => [p.id, p.nombre] as const));
+
+          const rowsRaw = Array.isArray(estudiantes) ? estudiantes : [];
+          const list = rowsRaw.reduce<EstudianteBiometriaRow[]>((acc, e: any) => {
+            const id = String(e?.id ?? e?.estudianteId ?? e?.id_estudiante ?? e?.idEstudiante ?? '');
+            if (!id) return acc;
+
+            const codigo = String(e?.codigo ?? e?.codigo_estudiante ?? e?.codigoEstudiante ?? '').trim();
+            const nombreCompleto = String(
+              e?.nombreCompleto ?? e?.nombre_completo ?? e?.nombre ?? e?.fullName ?? e?.nombres ?? '',
+            ).trim();
+            const cedula = String(e?.cedula ?? e?.documento ?? e?.dni ?? '').trim();
+            const email = String(e?.email ?? e?.correo ?? e?.mail ?? '').trim();
+            const programaId = String(
+              e?.programaId ?? e?.programa_id ?? e?.programa ?? e?.programaAcademicoId ?? '',
+            ).trim();
+
+            const programaNombreDirecto = String(
+              e?.programaNombre ?? e?.programa_nombre ?? e?.programaAcademico?.nombre ?? '',
+            ).trim();
+            const programaNombre = programaNombreDirecto || programaNombreById.get(programaId) || '—';
+
+            const semestreRaw = e?.semestre ?? e?.semestre_cursante ?? e?.nivel ?? '';
+            const semestre = String(semestreRaw ?? '').trim() || '—';
+
+            const fotoDataUrl: string | undefined =
+              (typeof e?.fotoDataUrl === 'string' && e.fotoDataUrl) ||
+              (typeof e?.foto === 'string' && e.foto.startsWith('data:') ? e.foto : undefined) ||
+              undefined;
+
+            const fechaRaw = e?.fechaRegistro ?? e?.fecha_registro ?? e?.createdAt ?? e?.created_at ?? e?.fecha;
+            const fechaRegistro = this.formatFecha(fechaRaw);
+
+            acc.push({
+              id,
+              codigo: codigo || '—',
+              nombreCompleto: nombreCompleto || '—',
+              cedula: cedula || '—',
+              email: email || '—',
+              programaId,
+              programaNombre,
+              semestre,
+              fotoDataUrl,
+              fechaRegistro,
+            });
+            return acc;
+          }, []);
+
+          this.programasAcademicos.set(programasList);
+          this.registrados.set(list);
+          this.cargando.set(false);
+        },
+        error: () => {
+          this.programasAcademicos.set([]);
+          this.registrados.set([]);
+          this.cargando.set(false);
+        },
+      });
+  }
+
+  private formatFecha(value: any): string {
+    if (value === null || value === undefined) return '—';
+    if (value instanceof Date && Number.isFinite(value.getTime())) return value.toLocaleDateString('es-CO');
+    const text = String(value).trim();
+    if (!text) return '—';
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    const d = new Date(text);
+    if (Number.isFinite(d.getTime())) return d.toLocaleDateString('es-CO');
+    return text;
+  }
+
+  private toNumberId(id: string): number | null {
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
 
   setQuery(value: string) {
     this.query.set(value);
@@ -108,30 +215,45 @@ export class RegistrarBiometria {
     }
 
     const value = this.form.getRawValue();
-    const programa = this.programasAcademicos().find((p) => p.id === value.programaId);
-    const formatted = new Date().toLocaleDateString('es-CO');
 
-    const row: EstudianteBiometriaRow = {
-      id: editing ?? crypto.randomUUID(),
+    const payload: any = {
       codigo: value.codigo.trim(),
       nombreCompleto: value.nombreCompleto.trim(),
       cedula: value.cedula.trim(),
       email: value.email.trim(),
-      programaId: value.programaId,
-      programaNombre: programa?.nombre ?? '—',
+      ...(value.password?.trim() ? { password: value.password.trim() } : {}),
+      programaId: Number.isFinite(Number(value.programaId)) ? Number(value.programaId) : value.programaId,
       semestre: value.semestre.trim(),
-      fotoDataUrl: this.photoPreview() ?? undefined,
-      fechaRegistro: formatted,
+      ...(this.photoPreview() ? { foto: this.photoPreview() } : {}),
     };
 
     if (editing) {
-      this.registrados.update((rows) => rows.map((r) => (r.id === editing ? row : r)));
-      this.editingId.set(null);
-    } else {
-      this.registrados.update((rows) => [row, ...rows]);
+      const idNum = this.toNumberId(editing);
+      if (!idNum) return;
+      this.estudiantesService
+        .actualizar(idNum, payload)
+        .pipe(take(1), catchError(() => of(null)))
+        .subscribe(() => {
+          this.editingId.set(null);
+          this.photoPreview.set(null);
+          this.resetForm();
+          this.cargarDesdeApi();
+
+          this.activeTab.set('registrados');
+        });
+      return;
     }
 
-    this.resetForm();
+    this.estudiantesService
+      .registrar(payload)
+      .pipe(take(1), catchError(() => of(null)))
+      .subscribe(() => {
+        this.photoPreview.set(null);
+        this.resetForm();
+        this.cargarDesdeApi();
+
+        this.activeTab.set('registrados');
+      });
   }
 
   edit(id: string) {
@@ -150,19 +272,30 @@ export class RegistrarBiometria {
     });
     this.form.controls.password.setValidators([]);
     this.form.controls.password.updateValueAndValidity({ emitEvent: false });
+
+    this.activeTab.set('registro');
   }
 
   remove(id: string) {
-    this.registrados.update((rows) => rows.filter((r) => r.id !== id));
-    if (this.editingId() === id) {
-      this.cancel();
-    }
+    const idNum = this.toNumberId(id);
+    if (!idNum) return;
+    this.estudiantesService
+      .eliminar(idNum)
+      .pipe(take(1), catchError(() => of(null)))
+      .subscribe(() => {
+        if (this.editingId() === id) {
+          this.cancel();
+        }
+        this.cargarDesdeApi();
+      });
   }
 
   cancel() {
     this.editingId.set(null);
     this.photoPreview.set(null);
     this.resetForm();
+
+    this.activeTab.set('registro');
   }
 
   private resetForm() {

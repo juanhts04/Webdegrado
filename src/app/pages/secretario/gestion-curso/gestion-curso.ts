@@ -7,6 +7,8 @@ import { CursoService } from '../../../services/cursos';
 import { HorarioService } from '../../../services/horarios';
 import { ProgramasAcademicosService } from '../../../services/programas-academicos';
 
+type TabKey = 'registro' | 'registrados';
+
 type ProgramaAcademico = {
   id: number;
   nombre: string;
@@ -49,6 +51,8 @@ export class GestionCurso {
   private readonly cursoService = inject(CursoService);
   private readonly horarioService = inject(HorarioService);
   private readonly programasService = inject(ProgramasAcademicosService);
+
+  readonly activeTab = signal<TabKey>('registro');
 
   readonly loading = signal<boolean>(false);
   readonly loadingAux = signal<boolean>(false);
@@ -101,6 +105,10 @@ export class GestionCurso {
         if (!this.isBrowser) return;
         this.loadCursos();
       });
+  }
+
+  setTab(tab: TabKey) {
+    this.activeTab.set(tab);
   }
 
   setQuery(value: string) {
@@ -217,16 +225,31 @@ export class GestionCurso {
       });
   }
 
-  onHorarioSelectChange(event: Event) {
-    const select = event.target as HTMLSelectElement | null;
-    if (!select) return;
+  isHorarioSelected(id: number): boolean {
+    const key = String(id);
+    return (this.form.controls.horarioIds.value ?? []).includes(key);
+  }
 
-    const selected = Array.from(select.selectedOptions).map((o) => o.value);
-    if (selected.includes('-1')) {
-      this.form.controls.horarioIds.setValue([]);
-      return;
-    }
-    this.form.controls.horarioIds.setValue(selected);
+  toggleHorario(id: number) {
+    const key = String(id);
+    const current = this.form.controls.horarioIds.value ?? [];
+    const set = new Set(current);
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    this.form.controls.horarioIds.setValue(Array.from(set));
+  }
+
+  removeHorario(id: number) {
+    const key = String(id);
+    const current = this.form.controls.horarioIds.value ?? [];
+    if (!current.includes(key)) return;
+    this.form.controls.horarioIds.setValue(current.filter((x) => x !== key));
+  }
+
+  selectedHorarios(): Horario[] {
+    const selected = new Set(this.form.controls.horarioIds.value ?? []);
+    if (!selected.size) return [];
+    return this.horarios().filter((h) => selected.has(String(h.id)));
   }
 
   private formatHHmm(value: unknown): string {
@@ -249,6 +272,17 @@ export class GestionCurso {
     return [left, right].filter(Boolean).join(' · ');
   }
 
+  horarioPieces(h: Horario): { codigo: string; dias: string; hora: string } {
+    const codigo = (h.codigo ?? '').toString().trim();
+    const dia = (h.dia ?? '').toString().trim();
+    const diasArr = Array.isArray(h.dias) ? h.dias : [];
+    const dias = dia || (diasArr.length ? diasArr.join(', ') : '');
+    const inicio = this.formatHHmm(h.hora_inicio);
+    const fin = this.formatHHmm(h.hora_fin);
+    const hora = [inicio, fin].filter(Boolean).join(' - ');
+    return { codigo, dias, hora };
+  }
+
   cursoHorariosText(curso: CursoRow): string {
     const ids = curso.horarioIds;
     if (!ids.length) return 'Sin horario';
@@ -268,13 +302,15 @@ export class GestionCurso {
 
     const editingId = this.editingId();
     const value = this.form.getRawValue();
-    const codigo = value.codigo.trim();
-    const nombre = value.nombre.trim();
-    const descripcion = value.descripcion.trim();
+    const codigo = String(value.codigo ?? '').trim();
+    const nombre = String(value.nombre ?? '').trim();
+    const descripcion = String(value.descripcion ?? '').trim();
     const programaId = Number(value.programaId);
     const creditos = Number(value.creditos);
-    const semestreText = value.semestre.trim();
-    const semestre = semestreText ? Number(semestreText) : undefined;
+    const semestreRaw: unknown = value.semestre;
+    const semestreText = typeof semestreRaw === 'number' ? String(semestreRaw) : String(semestreRaw ?? '').trim();
+    const semestreParsed = semestreText ? Number(semestreText) : NaN;
+    const semestre = Number.isFinite(semestreParsed) ? semestreParsed : undefined;
     const horarioIds = (value.horarioIds ?? [])
       .map((x) => Number(x))
       .filter((x) => Number.isFinite(x) && x > 0);
@@ -307,6 +343,11 @@ export class GestionCurso {
             this.editingId.set(null);
             this.resetForm();
             this.loadCursos();
+            this.activeTab.set('registrados');
+          },
+          error: (err) => {
+            console.error('❌ Error al actualizar curso:', err);
+            alert('No se pudo actualizar el curso. Revisa la consola para ver el error del API.');
           },
         });
       return;
@@ -319,6 +360,11 @@ export class GestionCurso {
         next: () => {
           this.resetForm();
           this.loadCursos();
+          this.activeTab.set('registrados');
+        },
+        error: (err) => {
+          console.error('❌ Error al registrar curso:', err);
+          alert('No se pudo registrar el curso. Revisa la consola para ver el error del API.');
         },
       });
   }
@@ -326,6 +372,7 @@ export class GestionCurso {
   edit(row: CursoRow) {
     if (!row.id) return;
     this.editingId.set(row.id);
+    this.activeTab.set('registro');
     this.form.setValue({
       codigo: row.codigo,
       nombre: row.nombre,
@@ -354,6 +401,7 @@ export class GestionCurso {
   cancel() {
     this.editingId.set(null);
     this.resetForm();
+    this.activeTab.set('registro');
   }
 
   private resetForm() {
