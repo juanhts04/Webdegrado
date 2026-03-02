@@ -55,20 +55,6 @@
   gap: 12px;
 }
 
-.lang {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(0, 0, 0, 0.65);
-  font-weight: 800;
-  font-size: 13px;
-}
-
-.lang svg {
-  width: 18px;
-  height: 18px;
-}
-
 .login-content {
   flex: 1;
   width: 100%;
@@ -184,56 +170,14 @@
   box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.14);
 }
 
-.password {
-  position: relative;
-  width: 100%;
-}
-
-.password input {
-  width: 100%;
-  padding-right: 44px;
-}
-
-.toggle {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  border: 0;
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.55);
-  cursor: pointer;
-}
-
-.toggle svg {
-  width: 18px;
-  height: 18px;
-}
 
 .row {
   margin-top: 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.check {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(0, 0, 0, 0.55);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.check input {
-  width: 14px;
-  height: 14px;
 }
 
 .btn-primary {

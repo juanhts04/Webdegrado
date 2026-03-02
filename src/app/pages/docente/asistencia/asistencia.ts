@@ -80,6 +80,7 @@ export class Asistencia implements AfterViewInit, OnDestroy {
 
   readonly toastMessage = signal<string | null>(null);
   private toastTimeout?: number;
+  private resultadoTimeout?: number;
 
   readonly registroForm = this.fb.nonNullable.group({
     cursoId: this.fb.nonNullable.control('todos'),
@@ -145,6 +146,10 @@ export class Asistencia implements AfterViewInit, OnDestroy {
   private recognizing = false;
   private detecting = false;
   private lastDetectErrorToastAt = 0;
+  private holdRecognitionForBox?: { box: FaceBox; until: number };
+  private captureCanvas?: HTMLCanvasElement;
+  private captureCtx?: CanvasRenderingContext2D | null;
+  private readonly CAPTURE_JPEG_QUALITY = 0.85;
 
   private readonly PERSON_COOLDOWN_MS = 8000;
   private readonly personNextAllowedAt = new Map<string, number>();
@@ -152,8 +157,8 @@ export class Asistencia implements AfterViewInit, OnDestroy {
   private cameraOffTime: number | null = null;
   private readonly TIEMPO_MINIMO_SALIDA = 5 * 60 * 1000;
 
-  private readonly DETECT_INTERVAL = 400;
-  private readonly STABLE_THRESHOLD = 3;
+  private readonly DETECT_INTERVAL = 300;
+  private readonly STABLE_THRESHOLD = 2;
 
   constructor() {
     if (!this.isBrowser) return;
@@ -178,6 +183,7 @@ export class Asistencia implements AfterViewInit, OnDestroy {
   async ngOnDestroy(): Promise<void> {
     this.stopClock();
     this.clearToastTimeout();
+    this.clearResultadoTimeout();
     await this.stopCamera();
   }
 
@@ -243,6 +249,21 @@ export class Asistencia implements AfterViewInit, OnDestroy {
       window.clearTimeout(this.toastTimeout);
       this.toastTimeout = undefined;
     }
+  }
+
+  private clearResultadoTimeout() {
+    if (this.resultadoTimeout) {
+      window.clearTimeout(this.resultadoTimeout);
+      this.resultadoTimeout = undefined;
+    }
+  }
+
+  private scheduleClearResultado(delayMs = 2500) {
+    this.clearResultadoTimeout();
+    this.resultadoTimeout = window.setTimeout(() => {
+      this.resultado.set(null);
+      this.resultadoTimeout = undefined;
+    }, Math.max(0, delayMs));
   }
 
   private toast(msg: string) {
@@ -500,6 +521,10 @@ export class Asistencia implements AfterViewInit, OnDestroy {
     this.stableFrames = 0;
     this.lastBox = undefined;
     this.resultado.set(null);
+    this.clearResultadoTimeout();
+    this.holdRecognitionForBox = undefined;
+    this.captureCanvas = undefined;
+    this.captureCtx = undefined;
     this.clearCanvas();
 
     this.cameraOffTime = Date.now();
@@ -509,7 +534,7 @@ export class Asistencia implements AfterViewInit, OnDestroy {
     this.stopDetectionLoop();
     this.detectInterval = window.setInterval(() => {
       if (!this.cameraOn() || this.recognizing) return;
-      this.detectFaceOnly();
+      void this.detectFaceOnly();
     }, this.DETECT_INTERVAL);
   }
 
@@ -520,14 +545,22 @@ export class Asistencia implements AfterViewInit, OnDestroy {
     }
   }
 
-  private detectFaceOnly() {
+  private async detectFaceOnly() {
     if (this.detecting) return;
-
-    const base64 = this.captureWebFrame();
-    if (!base64) return;
-    const blob = this.base64ToBlob(base64);
-
     this.detecting = true;
+
+    let blob: Blob | undefined;
+    try {
+      blob = await this.captureWebFrameBlob();
+    } catch {
+      this.detecting = false;
+      return;
+    }
+
+    if (!blob) {
+      this.detecting = false;
+      return;
+    }
 
     this.faceService
       .detectarRostro(blob)
@@ -561,6 +594,10 @@ export class Asistencia implements AfterViewInit, OnDestroy {
         if (this.isStable(parsed.box)) {
           this.stableFrames++;
           if (this.stableFrames >= this.STABLE_THRESHOLD) {
+            if (this.shouldHoldRecognition(parsed.box)) {
+              this.stableFrames = 0;
+              return;
+            }
             this.recognizeFace(blob);
           }
         } else {
@@ -569,6 +606,25 @@ export class Asistencia implements AfterViewInit, OnDestroy {
 
         this.lastBox = parsed.box;
       });
+  }
+
+  private shouldHoldRecognition(currentBox: FaceBox): boolean {
+    const hold = this.holdRecognitionForBox;
+    if (!hold) return false;
+
+    const now = Date.now();
+    if (now >= hold.until) {
+      this.holdRecognitionForBox = undefined;
+      return false;
+    }
+
+    return this.isSimilarBox(currentBox, hold.box);
+  }
+
+  private isSimilarBox(a: FaceBox, b: FaceBox): boolean {
+    const dx = Math.abs(a.left - b.left);
+    const dy = Math.abs(a.top - b.top);
+    return dx < 20 && dy < 20;
   }
 
   private waitForVideoReady(video: HTMLVideoElement, timeoutMs: number): Promise<void> {
@@ -729,6 +785,7 @@ export class Asistencia implements AfterViewInit, OnDestroy {
         next: (res: any) => {
           if (!res?.recognized) {
             this.resultado.set({ recognized: false });
+            this.scheduleClearResultado();
             this.recognizing = false;
             this.stableFrames = 0;
             return;
@@ -739,6 +796,7 @@ export class Asistencia implements AfterViewInit, OnDestroy {
             person: (res?.person ?? '').toString(),
             confidence: Number(res?.confidence),
           });
+          this.scheduleClearResultado();
 
           const cursoId = this.getCursoSeleccionado();
           if (!cursoId) {
@@ -756,6 +814,11 @@ export class Asistencia implements AfterViewInit, OnDestroy {
           }
 
           if (this.isPersonCoolingDown(personKey)) {
+            // Evita re-intentar reconocer el mismo rostro una y otra vez mientras está en cooldown.
+            if (this.lastBox) {
+              const until = this.personNextAllowedAt.get(personKey) ?? Date.now() + this.PERSON_COOLDOWN_MS;
+              this.holdRecognitionForBox = { box: this.lastBox, until };
+            }
             this.recognizing = false;
             this.stableFrames = 0;
             return;
@@ -777,6 +840,10 @@ export class Asistencia implements AfterViewInit, OnDestroy {
                     this.toast(msg);
                   }
                 } finally {
+                  // Sigue registrando a otros: pausa breve para no re-capturar el mismo rostro inmediatamente.
+                  if (this.lastBox) {
+                    this.holdRecognitionForBox = { box: this.lastBox, until: Date.now() + 1200 };
+                  }
                   this.recognizing = false;
                   this.stableFrames = 0;
                 }
@@ -795,6 +862,9 @@ export class Asistencia implements AfterViewInit, OnDestroy {
                   else if (status === 403) this.toast('No pertenece al curso');
                   else this.toast('Error asistencia');
                 } finally {
+                  if (this.lastBox) {
+                    this.holdRecognitionForBox = { box: this.lastBox, until: Date.now() + 1200 };
+                  }
                   this.recognizing = false;
                   this.stableFrames = 0;
                 }
@@ -802,6 +872,9 @@ export class Asistencia implements AfterViewInit, OnDestroy {
             });
         },
         error: () => {
+          if (this.lastBox) {
+            this.holdRecognitionForBox = { box: this.lastBox, until: Date.now() + 1200 };
+          }
           this.recognizing = false;
           this.stableFrames = 0;
         },
@@ -845,26 +918,29 @@ export class Asistencia implements AfterViewInit, OnDestroy {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  private captureWebFrame(): string | undefined {
+  private captureWebFrameBlob(): Promise<Blob | undefined> {
     const video = this.webVideo?.nativeElement;
-    if (!video || !video.videoWidth || !video.videoHeight) return;
+    if (!video || !video.videoWidth || !video.videoHeight) return Promise.resolve(undefined);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL('image/jpeg').split(',')[1];
-  }
-
-  private base64ToBlob(base64: string): Blob {
-    const bytes = atob(base64);
-    const arr = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) {
-      arr[i] = bytes.charCodeAt(i);
+    if (!this.captureCanvas) {
+      this.captureCanvas = document.createElement('canvas');
+      this.captureCtx = this.captureCanvas.getContext('2d');
     }
-    return new Blob([arr], { type: 'image/jpeg' });
+
+    const canvas = this.captureCanvas;
+    const ctx = this.captureCtx;
+    if (!canvas || !ctx) return Promise.resolve(undefined);
+
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    return new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b ?? undefined), 'image/jpeg', this.CAPTURE_JPEG_QUALITY);
+    });
   }
 
   formatConfidence(confidence: unknown): string {

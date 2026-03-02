@@ -177,8 +177,7 @@ export class Jcprincipal {
     const role = this.currentUser()?.rol;
 
     if (role === 'admin') {
-      const allowed = new Set(['registrar-secretario', 'registro-biometrico', 'mi-perfil']);
-      return this.menuItems.filter((item) => allowed.has(item.key));
+      return [...this.menuItems];
     }
 
     if (role === 'docente') {

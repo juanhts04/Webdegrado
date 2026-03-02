@@ -2,8 +2,8 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { forkJoin, from, of } from 'rxjs';
+import { catchError, map, mergeMap, switchMap, take, toArray } from 'rxjs/operators';
 import { CursoService } from '../../../services/cursos';
 import { DocenteService } from '../../../services/docentes';
 import { EstudiantesService } from '../../../services/estudiantes';
@@ -98,6 +98,38 @@ export class MisCursos {
     }
   }
 
+  private getCurrentStudentIdentity(): { estudianteId?: number; codigo?: string; email?: string } {
+    const user = this.getCurrentUser();
+    if (!user) return {};
+
+    const estudianteId = Number(
+      user?.estudianteId ??
+        user?.id_estudiante ??
+        user?.idEstudiante ??
+        user?.estudiante_id ??
+        user?.estudiante?.id,
+    );
+
+    const email = (
+      user?.correo ?? user?.email ?? user?.mail ?? user?.usuario?.correo ?? user?.usuario?.email ?? ''
+    )
+      .toString()
+      .trim()
+      .toLowerCase();
+
+    const codigo = (
+      user?.codigo ?? user?.codigoEstudiante ?? user?.code ?? user?.user ?? user?.username ?? user?.usuario?.codigo ?? ''
+    )
+      .toString()
+      .trim();
+
+    return {
+      ...(Number.isFinite(estudianteId) && estudianteId > 0 ? { estudianteId } : {}),
+      ...(codigo ? { codigo } : {}),
+      ...(email ? { email } : {}),
+    };
+  }
+
   private resolveEstudianteId$() {
     if (!this.isBrowser) return of(null);
     const user = this.getCurrentUser();
@@ -155,7 +187,13 @@ export class MisCursos {
           return false;
         });
 
-        const id = Number(match?.id ?? match?.estudianteId ?? match?.id_estudiante ?? match?.idEstudiante);
+        const id = Number(
+          match?.id ??
+            match?.estudianteId ??
+            match?.id_estudiante ??
+            match?.idEstudiante ??
+            match?.estudiante_id,
+        );
         if (Number.isFinite(id) && id > 0) return id;
         const maybe = Number(user?.id);
         return Number.isFinite(maybe) && maybe > 0 ? maybe : null;
@@ -168,6 +206,8 @@ export class MisCursos {
     if (!this.isBrowser) return;
     this.cargandoCursos.set(true);
 
+    const identityHint = this.getCurrentStudentIdentity();
+
     this.resolveEstudianteId$()
       .pipe(
         take(1),
@@ -178,7 +218,24 @@ export class MisCursos {
             );
             return of([] as any[]);
           }
-          return this.estudiantesService.listarCursosAsignados(id).pipe(catchError(() => of([] as any[])));
+
+          return this.estudiantesService.listarCursosAsignados(id).pipe(
+            catchError((err) => {
+              console.error('[MisCursos] Error cargando cursos asignados', err);
+              // Fallback: reconstruye cursos usando /estudiantes-por-curso/:cursoId
+              return this.scanCursosByStudent({
+                estudianteId: id,
+                codigo: identityHint.codigo,
+                email: identityHint.email,
+              }).pipe(
+                catchError((scanErr) => {
+                  console.error('[MisCursos] Error en fallback scan', scanErr);
+                  this.toast('No se pudieron cargar tus cursos');
+                  return of([] as any[]);
+                }),
+              );
+            }),
+          );
         }),
       )
       .subscribe({
@@ -228,6 +285,60 @@ export class MisCursos {
           this.cargandoCursos.set(false);
         },
       });
+  }
+
+  private scanCursosByStudent(identity: { estudianteId: number; codigo?: string; email?: string }) {
+    return this.cursoService.listar().pipe(
+      take(1),
+      map((rows: any) => (Array.isArray(rows) ? rows : [])),
+      switchMap((courses: any[]) => {
+        if (!courses.length) return of([] as any[]);
+
+        const matchesStudent = (row: any): boolean => {
+          const rid = Number(row?.estudiante_id ?? row?.id_estudiante ?? row?.estudianteId ?? row?.idEstudiante ?? row?.id);
+          if (Number.isFinite(rid) && rid > 0 && rid === identity.estudianteId) return true;
+
+          const rCode = (row?.codigo ?? row?.codigo_estudiante ?? row?.codigoEstudiante ?? row?.code ?? row?.user ?? row?.username)
+            ?.toString?.()
+            ?.trim?.();
+          if (identity.codigo && rCode && String(rCode) === identity.codigo) return true;
+
+          const rEmail = (row?.correo ?? row?.email ?? row?.mail)
+            ?.toString?.()
+            ?.trim?.()
+            ?.toLowerCase?.();
+          if (identity.email && rEmail && String(rEmail) === identity.email) return true;
+
+          return false;
+        };
+
+        return from(courses).pipe(
+          mergeMap(
+            (course: any) => {
+              const courseId = Number(course?.id ?? course?.curso_id ?? course?.id_curso ?? course?.cursoId);
+              if (!Number.isFinite(courseId) || courseId <= 0) return of(null);
+
+              return this.estudiantesService.listarPorCurso(courseId).pipe(
+                take(1),
+                map((students: any) => {
+                  const list = Array.isArray(students)
+                    ? students
+                    : Array.isArray((students as any)?.estudiantes)
+                      ? (students as any).estudiantes
+                      : [];
+                  const found = list.some((s: any) => matchesStudent(s));
+                  return found ? course : null;
+                }),
+                catchError(() => of(null)),
+              );
+            },
+            4,
+          ),
+          toArray(),
+          map((arr) => arr.filter((x): x is any => !!x)),
+        );
+      }),
+    );
   }
 
   private construirHorarioAcademico(): void {

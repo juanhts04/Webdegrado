@@ -12,17 +12,6 @@
         />
         <span class="topbar-title">Universidad del Pacífico</span>
       </div>
-
-      <div class="topbar-right" aria-label="Acciones">
-        <span class="lang" aria-label="Idioma actual">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M2 12h20"></path>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path>
-          </svg>
-          ES
-        </span>
-      </div>
     </div>
   </header>
 
@@ -43,7 +32,7 @@
         </div>
 
         <p class="side-text">
-          Sistema de asistencia inteligente basado en reconocimiento facial, diseñado para optimizar el control académico y fortalecer la innovación tecnológica en la Universidad del Pacífico.
+          Sistema de asistencia inteligente basado en reconocimiento facial, diseñado para optimizar el registro de asistencia y detectar el ausentismo en las aulas de clase en la Universidad del Pacífico.
         </p>
       </section>
 
@@ -66,31 +55,18 @@
 
           <div class="field">
             <label for="contrasena">Contraseña</label>
-            <div class="password">
-              <input
-                id="contrasena"
-                [type]="showPassword ? 'text' : 'password'"
-                [(ngModel)]="loginData.contrasena"
-                name="contrasena"
-                placeholder="Ingresa tu contraseña"
-                autocomplete="current-password"
-                required
-              />
-              <button class="toggle" type="button" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </button>
-            </div>
+            <input
+              id="contrasena"
+              type="password"
+              [(ngModel)]="loginData.contrasena"
+              name="contrasena"
+              placeholder="Ingresa tu contraseña"
+              autocomplete="current-password"
+              required
+            />
           </div>
 
           <div class="row">
-            <label class="check">
-              <input type="checkbox" [(ngModel)]="rememberMe" name="rememberMe" />
-              <span>Recordarme</span>
-            </label>
-
             <button class="btn-link" type="button" (click)="olvidoContrasena()">Olvidaste tu contraseña?</button>
           </div>
 

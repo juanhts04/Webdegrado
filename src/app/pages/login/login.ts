@@ -17,9 +17,6 @@ import { UsuarioService } from '../../services/usuario';
 })
 export class Login {
 
-  showPassword = false;
-  rememberMe = false;
-
   loginData = {
     correo: '',
     contrasena: ''
@@ -27,10 +24,6 @@ export class Login {
 
   private readonly router = inject(Router);
   private readonly usuarioService = inject(UsuarioService);
-
-  togglePassword(): void {
-    this.showPassword = !this.showPassword;
-  }
 
   login() {
     if (!this.loginData.correo || !this.loginData.contrasena) {

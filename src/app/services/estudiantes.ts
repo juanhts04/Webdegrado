@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 
@@ -51,8 +52,11 @@ export class EstudiantesService {
   }
 
   listarCursosAsignados(estudianteId: number): Observable<any[]> {
-    return this.http.get<any[]>(
-      `${this.apiUrl}/estudiantes/${estudianteId}/cursos`
+    // Mantiene compatibilidad: distintos backends exponen el recurso en rutas diferentes.
+    return this.http.get<any[]>(`${this.apiUrl}/cursos-por-estudiante/${estudianteId}`).pipe(
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/estudiantes/${estudianteId}/cursos`)),
+      catchError(() => this.http.get<any[]>(`${this.apiExpress}/cursos-por-estudiante/${estudianteId}`)),
+      catchError(() => this.http.get<any[]>(`${this.apiExpress}/estudiantes/${estudianteId}/cursos`)),
     );
   }
 

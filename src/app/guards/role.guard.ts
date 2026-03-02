@@ -33,6 +33,9 @@ export const roleGuard: CanActivateFn = (route) => {
     return false;
   }
 
+  // Admin tiene acceso total a todas las vistas protegidas
+  if (role === 'admin') return true;
+
   const roles = route.data?.['roles'] as string[] | undefined;
   if (!roles || roles.length === 0) return true;
 
