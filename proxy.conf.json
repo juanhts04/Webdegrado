@@ -1,0 +1,8 @@
+{
+  "/api3": {
+    "target": "https://juanbiometric.duckdns.org",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "info"
+  }
+}

@@ -173,6 +173,45 @@ export class Jcprincipal {
     { key: 'mi-perfil', label: 'Mi Perfil', badge: 'MP', icon: 'user' as const },
   ] as const;
 
+  readonly menuItemsForRole = computed(() => {
+    const role = this.currentUser()?.rol;
+
+    if (role === 'admin') {
+      const allowed = new Set(['registrar-secretario', 'registro-biometrico', 'mi-perfil']);
+      return this.menuItems.filter((item) => allowed.has(item.key));
+    }
+
+    if (role === 'docente') {
+      const allowed = new Set([
+        'supervisar-asistencia',
+        'registrar-asistencia',
+        'registrar-estudiante-curso',
+        'generar-reporte-docente',
+        'mi-perfil',
+      ]);
+      return this.menuItems.filter((item) => allowed.has(item.key));
+    }
+
+    if (role === 'secretario') {
+      const allowed = new Set([
+        'gestionar-curso',
+        'gestionar-docente',
+        'gestionar-horario',
+        'gestionar-salon',
+        'generar-reporte-secretario',
+        'mi-perfil',
+      ]);
+      return this.menuItems.filter((item) => allowed.has(item.key));
+    }
+
+    if (role === 'estudiante') {
+      const allowed = new Set(['mis-cursos', 'asistencias-registradas', 'mi-perfil']);
+      return this.menuItems.filter((item) => allowed.has(item.key));
+    }
+
+    return [] as (typeof this.menuItems)[number][];
+  });
+
   readonly activeLabel = computed(() => {
     const key = this.activeKey();
     return this.menuItems.find((item) => item.key === key)?.label ?? 'Supervisar Asistencia';

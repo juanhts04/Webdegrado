@@ -15,6 +15,7 @@ import { Asistencia } from './pages/docente/asistencia/asistencia';
 import { AsistenciaRegistrada } from './pages/estudiante/asistencia-registrada/asistencia-registrada';
 import { MisCursos } from './pages/estudiante/mis-cursos/mis-cursos';
 import { Login } from './pages/login/login';
+import { roleGuard } from './guards/role.guard';
 
 export const routes: Routes = [
 
@@ -25,62 +26,92 @@ export const routes: Routes = [
   {
     path: 'jcprincipal',
     component: Jcprincipal,
+		canActivate: [roleGuard],
+		data: { roles: ['admin', 'docente', 'secretario', 'estudiante'] },
     children: [
       {
         path: 'supervisar-asistencia',
         component: SupervisarAsistencia,
+			canActivate: [roleGuard],
+			data: { roles: ['docente'] },
       },
       {
         path: 'asistencia',
         component: Asistencia,
+			canActivate: [roleGuard],
+			data: { roles: ['docente'] },
       },
       {
         path: 'asistencias-registradas',
         component: AsistenciaRegistrada,
+			canActivate: [roleGuard],
+			data: { roles: ['estudiante'] },
       },
       {
         path: 'mis-cursos',
         component: MisCursos,
+			canActivate: [roleGuard],
+			data: { roles: ['estudiante'] },
       },
       {
         path: 'registrar-estudiante-curso',
         component: RegistrarEstudianteCurso,
+			canActivate: [roleGuard],
+			data: { roles: ['docente'] },
       },
       {
         path: 'registro-biometrico',
         component: RegistrarBiometria,
+			canActivate: [roleGuard],
+			data: { roles: ['admin'] },
       },
 			{
 				path: 'registrar-secretario',
 				component: RegistrarSecretario,
+				canActivate: [roleGuard],
+				data: { roles: ['admin'] },
 			},
 			{
 				path: 'gestion-curso',
 				component: GestionCurso,
+				canActivate: [roleGuard],
+				data: { roles: ['secretario'] },
 			},
       {
         path: 'gestion-docente',
         component: GestionDocente,
+			canActivate: [roleGuard],
+			data: { roles: ['secretario'] },
       },
 			{
 				path: 'gestion-horario',
 				component: GestionHorario,
+				canActivate: [roleGuard],
+				data: { roles: ['secretario'] },
 			},
       {
         path: 'gestion-salon',
         component: GestionSalon,
+			canActivate: [roleGuard],
+			data: { roles: ['secretario'] },
       },
       {
         path: 'sec-generar-reporte',
         component: SecGenerarReporte,
+			canActivate: [roleGuard],
+			data: { roles: ['secretario'] },
       },
       {
         path: 'generar-reporte',
         component: GenerarReporte,
+			canActivate: [roleGuard],
+			data: { roles: ['docente'] },
       },
       {
         path: 'mi-perfil',
         component: MiPerfil,
+			canActivate: [roleGuard],
+			data: { roles: ['admin', 'docente', 'secretario', 'estudiante'] },
       },
     ],
   },

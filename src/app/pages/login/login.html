@@ -1,51 +1,112 @@
 <div class="login-page">
-  <main class="login-card" aria-labelledby="loginTitle">
-    <div class="brand">
-      <img
-        class="brand-logo"
-        ngSrc="assets/img/logo.png"
-        width="220"
-        height="220"
-        alt="Universidad del Pacífico"
-        priority
-      />
+  <header class="topbar" role="banner" aria-label="Barra superior">
+    <div class="topbar-inner">
+      <div class="topbar-brand" aria-label="Universidad del Pacífico">
+        <img
+          class="topbar-logo"
+          ngSrc="assets/img/logo.png"
+          width="48"
+          height="48"
+          alt="Universidad del Pacífico"
+          priority
+        />
+        <span class="topbar-title">Universidad del Pacífico</span>
+      </div>
+
+      <div class="topbar-right" aria-label="Acciones">
+        <span class="lang" aria-label="Idioma actual">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M2 12h20"></path>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path>
+          </svg>
+          ES
+        </span>
+      </div>
     </div>
+  </header>
 
-    <h1 id="loginTitle" class="sr-only">Iniciar sesión</h1>
+  <div class="login-content">
+    <main class="login-card" aria-labelledby="loginTitle">
+      <section class="side" aria-label="Presentación">
+        <h2 class="side-title">Tu presencia cuenta, tu rostro lo confirma.</h2>
 
-    <form class="form" (ngSubmit)="login()" #form="ngForm">
-      <div class="field">
-        <input
-          type="text"
-          [(ngModel)]="loginData.correo"
-          name="correo"
-          placeholder="Usuario"
-          autocomplete="username"
-          required
-          aria-label="Usuario"
-        />
-      </div>
+        <div class="side-logo">
+          <img
+            class="brand-logo"
+            ngSrc="assets/img/logo.png"
+            width="360"
+            height="360"
+            alt="Universidad del Pacífico"
+            priority
+          />
+        </div>
 
-      <div class="field">
-        <input
-          type="password"
-          [(ngModel)]="loginData.contrasena"
-          name="contrasena"
-          placeholder="Contraseña"
-          autocomplete="current-password"
-          required
-          aria-label="Contraseña"
-        />
-      </div>
+        <p class="side-text">
+          Sistema de asistencia inteligente basado en reconocimiento facial, diseñado para optimizar el control académico y fortalecer la innovación tecnológica en la Universidad del Pacífico.
+        </p>
+      </section>
 
-      <button class="btn-primary" type="submit">Acceder</button>
+      <section class="form-area" aria-label="Formulario de inicio de sesión">
+        <h1 id="loginTitle" class="title">Iniciar sesión</h1>
 
-      <button class="btn-link" type="button" (click)="olvidoContrasena()">
-        ¿Olvidó su contraseña?
-      </button>
-    </form>
+        <form class="form" (ngSubmit)="login()" #form="ngForm">
+          <div class="field">
+            <label for="correo">Correo</label>
+            <input
+              id="correo"
+              type="text"
+              [(ngModel)]="loginData.correo"
+              name="correo"
+              placeholder="Ingresa tu correo"
+              autocomplete="username"
+              required
+            />
+          </div>
 
-    <hr class="divider" aria-hidden="true" />
+          <div class="field">
+            <label for="contrasena">Contraseña</label>
+            <div class="password">
+              <input
+                id="contrasena"
+                [type]="showPassword ? 'text' : 'password'"
+                [(ngModel)]="loginData.contrasena"
+                name="contrasena"
+                placeholder="Ingresa tu contraseña"
+                autocomplete="current-password"
+                required
+              />
+              <button class="toggle" type="button" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
 
-  </main>
+          <div class="row">
+            <label class="check">
+              <input type="checkbox" [(ngModel)]="rememberMe" name="rememberMe" />
+              <span>Recordarme</span>
+            </label>
+
+            <button class="btn-link" type="button" (click)="olvidoContrasena()">Olvidaste tu contraseña?</button>
+          </div>
+
+          <button class="btn-primary" type="submit">
+            <span class="btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M19 8v6"></path>
+                <path d="M22 11h-6"></path>
+              </svg>
+            </span>
+            Iniciar sesión
+          </button>
+        </form>
+      </section>
+    </main>
+  </div>
 </div>

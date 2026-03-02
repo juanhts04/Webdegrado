@@ -1,11 +1,36 @@
 /* You can add global styles to this file, and also import other style files */
 
+@font-face {
+	font-family: 'Inter';
+	src: url('/assets/fonts/Inter_24pt-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Inter';
+	src: url('/assets/fonts/Inter_24pt-SemiBold.ttf') format('truetype');
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+
 html,
 body {
 	height: 100%;
 	background: #ffffff;
+	font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 body {
 	margin: 0;
+}
+
+button,
+input[type='button'],
+input[type='submit'],
+input[type='reset'] {
+	font-family: inherit;
+	font-weight: 600;
 }

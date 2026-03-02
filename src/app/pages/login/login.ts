@@ -17,6 +17,9 @@ import { UsuarioService } from '../../services/usuario';
 })
 export class Login {
 
+  showPassword = false;
+  rememberMe = false;
+
   loginData = {
     correo: '',
     contrasena: ''
@@ -24,6 +27,10 @@ export class Login {
 
   private readonly router = inject(Router);
   private readonly usuarioService = inject(UsuarioService);
+
+  togglePassword(): void {
+    this.showPassword = !this.showPassword;
+  }
 
   login() {
     if (!this.loginData.correo || !this.loginData.contrasena) {
@@ -46,16 +53,16 @@ export class Login {
 
         switch (res.usuario.rol) {
           case 'admin':
-            this.router.navigate(['/jcprincipal']);
+			this.router.navigate(['/jcprincipal/registrar-secretario']);
             break;
           case 'docente':
-            this.router.navigate(['/docente']);
+			this.router.navigate(['/jcprincipal/supervisar-asistencia']);
             break;
           case 'secretario':
-            this.router.navigate(['/secretario']);
+			this.router.navigate(['/jcprincipal/gestion-curso']);
             break;
           case 'estudiante':
-            this.router.navigate(['/estudiante']);
+			this.router.navigate(['/jcprincipal/mis-cursos']);
             break;
           default:
             this.router.navigate(['/jcprincipal']);

@@ -16,7 +16,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap, take } from 'rxjs/operators';
 import { AsistenciaService } from '../../../services/asistencia';
 import { DocenteService } from '../../../services/docentes';
 import { ReconocimientoFacialService } from '../../../services/reconocimiento-facial-service';
@@ -143,6 +143,8 @@ export class Asistencia implements AfterViewInit, OnDestroy {
   private lastBox?: FaceBox;
   private stableFrames = 0;
   private recognizing = false;
+  private detecting = false;
+  private lastDetectErrorToastAt = 0;
 
   private readonly PERSON_COOLDOWN_MS = 8000;
   private readonly personNextAllowedAt = new Map<string, number>();
@@ -446,6 +448,11 @@ export class Asistencia implements AfterViewInit, OnDestroy {
     if (!this.isBrowser) return;
     if (this.cameraOn()) return;
 
+    if (!navigator.mediaDevices?.getUserMedia) {
+      this.toast('Este navegador no soporta cámara');
+      return;
+    }
+
     try {
       this.webStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
       const video = this.webVideo?.nativeElement;
@@ -455,12 +462,21 @@ export class Asistencia implements AfterViewInit, OnDestroy {
       }
 
       video.srcObject = this.webStream;
-      await video.play();
+
+      const playPromise = video.play();
+      await this.waitForVideoReady(video, 1500);
+      await playPromise;
+
       this.cameraOn.set(true);
       this.startDetectionLoop();
-    } catch {
-      this.toast('Permiso de cámara denegado');
+    } catch (err: any) {
+      this.toast(this.humanizeCameraError(err));
       this.cameraOn.set(false);
+
+      if (this.webStream) {
+        this.webStream.getTracks().forEach((t) => t.stop());
+        this.webStream = undefined;
+      }
     }
   }
 
@@ -505,24 +521,44 @@ export class Asistencia implements AfterViewInit, OnDestroy {
   }
 
   private detectFaceOnly() {
+    if (this.detecting) return;
+
     const base64 = this.captureWebFrame();
     if (!base64) return;
     const blob = this.base64ToBlob(base64);
 
+    this.detecting = true;
+
     this.faceService
       .detectarRostro(blob)
-      .pipe(take(1), catchError(() => of(null)))
+      .pipe(
+        take(1),
+        catchError((err) => {
+          const now = Date.now();
+          if (now - this.lastDetectErrorToastAt > 5000) {
+            const status = err?.status;
+            this.toast(status ? `Error detección (${status})` : 'Error conexión detección');
+            this.lastDetectErrorToastAt = now;
+          }
+          console.error('[Asistencia] Error /detect', err);
+          return of(null);
+        }),
+        finalize(() => {
+          this.detecting = false;
+        })
+      )
       .subscribe((res: any) => {
-        if (!res?.faceDetected || !res?.box) {
+        const parsed = this.parseDetectResponse(res);
+        if (!parsed.faceDetected || !parsed.box) {
           this.clearCanvas();
           this.lastBox = undefined;
           this.stableFrames = 0;
           return;
         }
 
-        this.drawFaceBox(res.box as FaceBox, false);
+        this.drawFaceBox(parsed.box, false);
 
-        if (this.isStable(res.box as FaceBox)) {
+        if (this.isStable(parsed.box)) {
           this.stableFrames++;
           if (this.stableFrames >= this.STABLE_THRESHOLD) {
             this.recognizeFace(blob);
@@ -531,8 +567,149 @@ export class Asistencia implements AfterViewInit, OnDestroy {
           this.stableFrames = 0;
         }
 
-        this.lastBox = res.box as FaceBox;
+        this.lastBox = parsed.box;
       });
+  }
+
+  private waitForVideoReady(video: HTMLVideoElement, timeoutMs: number): Promise<void> {
+    if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      let done = false;
+
+      const cleanup = () => {
+        video.removeEventListener('loadedmetadata', onMetadata);
+        video.removeEventListener('loadeddata', onData);
+      };
+
+      const finish = () => {
+        if (done) return;
+        done = true;
+        cleanup();
+        resolve();
+      };
+
+      const onMetadata = () => finish();
+      const onData = () => finish();
+
+      video.addEventListener('loadedmetadata', onMetadata, { once: true });
+      video.addEventListener('loadeddata', onData, { once: true });
+
+      window.setTimeout(() => finish(), Math.max(0, timeoutMs));
+    });
+  }
+
+  private humanizeCameraError(err: any): string {
+    const name = (err?.name ?? '').toString();
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Permiso de cámara denegado';
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No se encontró cámara';
+    if (name === 'NotReadableError') return 'No se pudo acceder a la cámara';
+    if (name === 'OverconstrainedError') return 'Cámara no compatible con la configuración solicitada';
+    return 'No se pudo iniciar la cámara';
+  }
+
+  private parseDetectResponse(res: any): { faceDetected: boolean; box?: FaceBox } {
+    if (!res || typeof res !== 'object') return { faceDetected: false };
+
+    const facesArray = Array.isArray((res as any).faces) ? (res as any).faces : null;
+    const faceDetectedRaw =
+      (res as any).faceDetected ??
+      (res as any).detected ??
+      (res as any).face_detected ??
+      (res as any).hasFace;
+
+    const faceDetected =
+      Boolean(faceDetectedRaw) ||
+      (Array.isArray(facesArray) && facesArray.length > 0) ||
+      Boolean((res as any).box || (res as any).bbox || (res as any).faceBox || (res as any).face_box);
+
+    const candidateBox =
+      (res as any).box ??
+      (res as any).bbox ??
+      (res as any).faceBox ??
+      (res as any).face_box ??
+      (facesArray?.[0]?.box ?? facesArray?.[0]?.bbox ?? facesArray?.[0]?.faceBox ?? facesArray?.[0]?.face_box ?? facesArray?.[0]);
+
+    const video = this.webVideo?.nativeElement;
+    const vw = Number(video?.videoWidth ?? 0);
+    const vh = Number(video?.videoHeight ?? 0);
+
+    const box = this.normalizeBox(candidateBox, vw, vh);
+    return box ? { faceDetected: true, box } : { faceDetected };
+  }
+
+  private normalizeBox(input: any, videoW: number, videoH: number): FaceBox | null {
+    if (!input || typeof input !== 'object') return null;
+
+    if (this.isFiniteNum(input.top) && this.isFiniteNum(input.right) && this.isFiniteNum(input.bottom) && this.isFiniteNum(input.left)) {
+      return this.denormalizeIfNeeded(
+        {
+          top: Number(input.top),
+          right: Number(input.right),
+          bottom: Number(input.bottom),
+          left: Number(input.left),
+        },
+        videoW,
+        videoH
+      );
+    }
+
+    if (this.isFiniteNum(input.x) && this.isFiniteNum(input.y) && this.isFiniteNum(input.w) && this.isFiniteNum(input.h)) {
+      const left = Number(input.x);
+      const top = Number(input.y);
+      const right = left + Number(input.w);
+      const bottom = top + Number(input.h);
+      return this.denormalizeIfNeeded({ top, right, bottom, left }, videoW, videoH);
+    }
+
+    if (this.isFiniteNum(input.x) && this.isFiniteNum(input.y) && this.isFiniteNum(input.width) && this.isFiniteNum(input.height)) {
+      const left = Number(input.x);
+      const top = Number(input.y);
+      const right = left + Number(input.width);
+      const bottom = top + Number(input.height);
+      return this.denormalizeIfNeeded({ top, right, bottom, left }, videoW, videoH);
+    }
+
+    if (this.isFiniteNum(input.left) && this.isFiniteNum(input.top) && this.isFiniteNum(input.width) && this.isFiniteNum(input.height)) {
+      const left = Number(input.left);
+      const top = Number(input.top);
+      const right = left + Number(input.width);
+      const bottom = top + Number(input.height);
+      return this.denormalizeIfNeeded({ top, right, bottom, left }, videoW, videoH);
+    }
+
+    if (this.isFiniteNum(input.xMin) && this.isFiniteNum(input.yMin) && this.isFiniteNum(input.xMax) && this.isFiniteNum(input.yMax)) {
+      return this.denormalizeIfNeeded(
+        {
+          left: Number(input.xMin),
+          top: Number(input.yMin),
+          right: Number(input.xMax),
+          bottom: Number(input.yMax),
+        },
+        videoW,
+        videoH
+      );
+    }
+
+    return null;
+  }
+
+  private denormalizeIfNeeded(box: FaceBox, videoW: number, videoH: number): FaceBox {
+    const max = Math.max(box.left, box.top, box.right, box.bottom);
+    if (max <= 1.5 && videoW > 0 && videoH > 0) {
+      return {
+        left: box.left * videoW,
+        right: box.right * videoW,
+        top: box.top * videoH,
+        bottom: box.bottom * videoH,
+      };
+    }
+    return box;
+  }
+
+  private isFiniteNum(value: any): boolean {
+    const n = Number(value);
+    return Number.isFinite(n);
   }
 
   private isStable(box: FaceBox): boolean {
