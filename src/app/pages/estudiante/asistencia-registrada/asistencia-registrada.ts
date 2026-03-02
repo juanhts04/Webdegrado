@@ -3,9 +3,10 @@ import { ChangeDetectionStrategy, Component, DestroyRef, PLATFORM_ID, computed, 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { forkJoin, from, of } from 'rxjs';
+import { catchError, map, mergeMap, switchMap, take, toArray } from 'rxjs/operators';
 import { AsistenciaService } from '../../../services/asistencia';
+import { CursoService } from '../../../services/cursos';
 import { EstudiantesService } from '../../../services/estudiantes';
 
 type CursoOption = { id: number; nombre: string; codigo?: string };
@@ -33,6 +34,7 @@ type HistorialRow = {
 export class AsistenciaRegistrada {
   private readonly estudiantesService = inject(EstudiantesService);
   private readonly asistenciaService = inject(AsistenciaService);
+  private readonly cursoService = inject(CursoService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
@@ -46,6 +48,8 @@ export class AsistenciaRegistrada {
 
   readonly toastMessage = signal<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private currentStudent?: { estudianteId: number; codigo?: string; email?: string };
 
   readonly form = new FormGroup({
     cursoId: new FormControl<string>('todos', { nonNullable: true }),
@@ -174,12 +178,83 @@ export class AsistenciaRegistrada {
           return false;
         });
 
-        const id = Number(match?.id ?? match?.estudianteId ?? match?.id_estudiante ?? match?.idEstudiante);
+        const id = Number(
+          match?.id ??
+            match?.estudianteId ??
+            match?.id_estudiante ??
+            match?.idEstudiante ??
+            match?.estudiante_id,
+        );
         if (Number.isFinite(id) && id > 0) return id;
         const maybe = Number(user?.id);
         return Number.isFinite(maybe) && maybe > 0 ? maybe : null;
       }),
       catchError(() => of(null)),
+    );
+  }
+
+  private getStudentIdentityHint(): { codigo?: string; email?: string } {
+    const user = this.getCurrentUser();
+    if (!user) return {};
+    const email = (
+      user?.correo ?? user?.email ?? user?.mail ?? user?.usuario?.correo ?? user?.usuario?.email ?? ''
+    )
+      .toString()
+      .trim()
+      .toLowerCase();
+    const codigo = (
+      user?.codigo ?? user?.codigoEstudiante ?? user?.code ?? user?.user ?? user?.username ?? user?.usuario?.codigo ?? ''
+    )
+      .toString()
+      .trim();
+    return { ...(codigo ? { codigo } : {}), ...(email ? { email } : {}) };
+  }
+
+  private asistenciaMatchesStudent(a: any, s: { estudianteId: number; codigo?: string; email?: string }): boolean {
+    const aid = Number(a?.estudiante_id ?? a?.id_estudiante ?? a?.estudianteId ?? a?.idEstudiante);
+    if (Number.isFinite(aid) && aid > 0 && aid === s.estudianteId) return true;
+
+    const acode = (a?.codigo ?? a?.person ?? a?.code ?? a?.user ?? a?.username)?.toString?.().trim?.();
+    if (s.codigo && acode && String(acode) === s.codigo) return true;
+
+    const aemail = (a?.correo ?? a?.email ?? a?.mail)?.toString?.().trim?.().toLowerCase?.();
+    if (s.email && aemail && String(aemail) === s.email) return true;
+
+    return false;
+  }
+
+  private filterCursosConAsistencia(courses: CursoOption[], student: { estudianteId: number; codigo?: string; email?: string }) {
+    if (!courses.length) return of([] as CursoOption[]);
+
+    return from(courses).pipe(
+      mergeMap(
+        (curso) =>
+          this.asistenciaService.listarAsistenciasPorCurso(curso.id).pipe(
+            take(1),
+            map((res: any) => {
+              const asistencias = Array.isArray(res?.asistencias) ? res.asistencias : [];
+              const anyMine = asistencias.some((a: any) => this.asistenciaMatchesStudent(a, student));
+              return anyMine ? curso : null;
+            }),
+            catchError(() => of(null)),
+          ),
+        4,
+      ),
+      toArray(),
+      map((arr) => arr.filter((x): x is CursoOption => !!x)),
+    );
+  }
+
+  private scanCursosConAsistencia(student: { estudianteId: number; codigo?: string; email?: string }) {
+    return this.cursoService.listar().pipe(
+      take(1),
+      map((rows: any) => (Array.isArray(rows) ? rows : [])),
+      map((raw: any[]) =>
+        raw
+          .map((c: any) => this.normalizeCurso(c))
+          .filter((c: CursoOption | null): c is CursoOption => !!c),
+      ),
+      switchMap((courses: CursoOption[]) => this.filterCursosConAsistencia(courses, student)),
     );
   }
 
@@ -279,12 +354,34 @@ export class AsistenciaRegistrada {
       this.toast('No se pudieron cargar los cursos');
     };
 
+    const hint = this.getStudentIdentityHint();
+
     this.resolveEstudianteId$()
       .pipe(
         take(1),
         switchMap((id) => {
           if (!id) return of([]);
-          return this.estudiantesService.listarCursosAsignados(id).pipe(catchError(() => of([])));
+
+          this.currentStudent = { estudianteId: id, ...hint };
+
+          return this.estudiantesService.listarCursosAsignados(id).pipe(
+            take(1),
+            catchError(() => of([])),
+            switchMap((assigned: any) => {
+              const raw = Array.isArray(assigned)
+                ? assigned
+                : Array.isArray((assigned as any)?.cursos)
+                  ? (assigned as any).cursos
+                  : [];
+              if (raw.length) {
+                const normalized = raw
+                  .map((c: any) => this.normalizeCurso(c))
+                  .filter((c: CursoOption | null): c is CursoOption => !!c);
+                return this.filterCursosConAsistencia(normalized, { estudianteId: id, ...hint });
+              }
+              return this.scanCursosConAsistencia({ estudianteId: id, ...hint });
+            }),
+          );
         }),
       )
       .subscribe({ next: onOk, error: onErr });
@@ -292,6 +389,12 @@ export class AsistenciaRegistrada {
 
   cargarHistorial() {
     if (!this.isBrowser) return;
+
+    const student = this.currentStudent;
+    if (!student) {
+      this.historial.set([]);
+      return;
+    }
 
     const selected = this.selectedCursoId();
     const cursoId = selected === 'todos' ? null : Number(selected);
@@ -310,7 +413,8 @@ export class AsistenciaRegistrada {
     this.cargandoHistorial.set(true);
 
     const toRows = (curso: CursoOption, res: any): HistorialRow[] => {
-      const asistencias = Array.isArray(res?.asistencias) ? res.asistencias : [];
+      const asistenciasRaw = Array.isArray(res?.asistencias) ? res.asistencias : [];
+      const asistencias = asistenciasRaw.filter((a: any) => this.asistenciaMatchesStudent(a, student));
       return asistencias.map((a: any) => {
         const nombreCompleto = a?.nombre_completo ?? a?.nombreCompleto ?? a?.nombre ?? a?.estudiante_nombre;
 
