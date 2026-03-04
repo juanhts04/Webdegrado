@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 
@@ -54,8 +55,25 @@ export class DocenteService {
 
   /** 🔹 LISTAR cursos asignados a un docente */
   listarCursosAsignados(docenteId: number): Observable<any[]> {
-    // Actualizado para usar el endpoint /cursos-por-docente/:docenteId
-    return this.http.get<any[]>(`${this.apiUrl}/cursos-por-docente/${docenteId}`);
+    // Compatibilidad: distintos backends exponen el recurso en rutas diferentes.
+    return this.http.get<any[]>(`${this.apiUrl}/cursos-por-docente/${docenteId}`).pipe(
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/docentes/${docenteId}/cursos`)),
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/cursos/docente/${docenteId}`)),
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/docente/${docenteId}/cursos`)),
+    );
+  }
+
+  /** 🔹 LISTAR docentes asignados a un curso (para fallbacks) */
+  listarPorCurso(cursoId: number): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/docentes-por-curso/${cursoId}`).pipe(
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/cursos/${cursoId}/docentes`)),
+      catchError(() => this.http.get<any[]>(`${this.apiUrl}/curso/${cursoId}/docentes`)),
+    );
+  }
+
+  /** 🔹 LISTAR asignaciones docente-curso (si el backend lo expone) */
+  listarAsignaciones(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/asignar-docente-curso`);
   }
 
 

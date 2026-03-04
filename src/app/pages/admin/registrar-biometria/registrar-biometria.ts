@@ -104,6 +104,11 @@ export class RegistrarBiometria {
             .filter((p: ProgramaAcademico) => !!p.id);
 
           const programaNombreById = new Map(programasList.map((p) => [p.id, p.nombre] as const));
+          const programaIdByNombre = new Map(
+            programasList
+              .filter((p) => !!p.nombre)
+              .map((p) => [p.nombre.trim().toLowerCase(), p.id] as const),
+          );
 
           const rowsRaw = Array.isArray(estudiantes) ? estudiantes : [];
           const list = rowsRaw.reduce<EstudianteBiometriaRow[]>((acc, e: any) => {
@@ -116,13 +121,28 @@ export class RegistrarBiometria {
             ).trim();
             const cedula = String(e?.cedula ?? e?.documento ?? e?.dni ?? '').trim();
             const email = String(e?.email ?? e?.correo ?? e?.mail ?? '').trim();
-            const programaId = String(
-              e?.programaId ?? e?.programa_id ?? e?.programa ?? e?.programaAcademicoId ?? '',
-            ).trim();
+
+            const programaRaw = e?.programa;
+            const programaString = typeof programaRaw === 'string' ? programaRaw.trim() : '';
+            const programaStringIsId = !!programaString && /^\d+$/.test(programaString);
+
+            let programaId = String(e?.programaId ?? e?.programa_id ?? e?.programaAcademicoId ?? '').trim();
+            if (!programaId && programaStringIsId) {
+              programaId = programaString;
+            }
 
             const programaNombreDirecto = String(
-              e?.programaNombre ?? e?.programa_nombre ?? e?.programaAcademico?.nombre ?? '',
+              e?.programaNombre ??
+                e?.programa_nombre ??
+                e?.programaAcademico?.nombre ??
+                (!programaStringIsId ? programaString : '') ??
+                '',
             ).trim();
+
+            if (!programaId && programaNombreDirecto) {
+              programaId = programaIdByNombre.get(programaNombreDirecto.toLowerCase()) ?? '';
+            }
+
             const programaNombre = programaNombreDirecto || programaNombreById.get(programaId) || '—';
 
             const semestreRaw = e?.semestre ?? e?.semestre_cursante ?? e?.nivel ?? '';

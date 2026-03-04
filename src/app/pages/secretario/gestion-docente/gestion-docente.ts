@@ -3,6 +3,8 @@ import { ChangeDetectionStrategy, Component, DestroyRef, PLATFORM_ID, computed, 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin, from, of } from 'rxjs';
+import { catchError, map, mergeMap, switchMap, take, toArray } from 'rxjs/operators';
 import { CursoService } from '../../../services/cursos';
 import { DocenteService } from '../../../services/docentes';
 import { ProgramasAcademicosService } from '../../../services/programas-academicos';
@@ -200,7 +202,7 @@ export class GestionDocente {
     if (!Number.isFinite(id) || id <= 0) return null;
     const nombre = String(raw?.nombre ?? raw?.nombreCurso ?? raw?.curso_nombre ?? '').trim();
     const codigo = String(raw?.codigo ?? raw?.codigoCurso ?? raw?.curso_codigo ?? '').trim();
-    const programaNombre = String(raw?.programa_nombre ?? raw?.programaNombre ?? '').trim();
+    const programaNombre = String(raw?.programa_nombre ?? raw?.programaNombre ?? raw?.programa ?? '').trim();
     const creditosRaw = raw?.creditos;
     const creditosNum = creditosRaw === null || creditosRaw === undefined ? null : Number(creditosRaw);
     const descripcion = String(raw?.descripcion ?? '').trim();
@@ -215,6 +217,29 @@ export class GestionDocente {
       descripcion: descripcion || undefined,
       asignacionId: Number.isFinite(asignacionIdNum) && asignacionIdNum > 0 ? asignacionIdNum : undefined,
     };
+  }
+
+  private enrichFromCatalog(rows: CursoRow[]): CursoRow[] {
+    if (!rows.length) return rows;
+
+    const catalog = new Map<number, CursoRow>();
+    for (const c of this.cursos()) {
+      if (Number.isFinite(c.id) && c.id > 0) catalog.set(c.id, c);
+    }
+
+    return rows.map((r) => {
+      const c = catalog.get(r.id);
+      if (!c) return r;
+      return {
+        ...r,
+        // Preferir lo que venga del endpoint; completar faltantes desde catálogo
+        nombre: r.nombre && r.nombre !== `Curso ${r.id}` ? r.nombre : c.nombre,
+        codigo: r.codigo ?? c.codigo,
+        programaNombre: r.programaNombre ?? c.programaNombre,
+        creditos: r.creditos === null || r.creditos === undefined ? (c.creditos ?? null) : r.creditos,
+        descripcion: r.descripcion ?? c.descripcion,
+      };
+    });
   }
 
   private loadCursos() {
@@ -250,13 +275,105 @@ export class GestionDocente {
     }
 
     this.loadingCursosAsignados.set(true);
+
+    const docenteMatches = (d: any): boolean => {
+      const id = Number(d?.id ?? d?.docenteId ?? d?.docente_id ?? d?.id_docente);
+      return Number.isFinite(id) && id > 0 && id === docenteId;
+    };
+
+    const normalizeCursoList = (data: any): CursoRow[] => {
+      const list = Array.isArray(data) ? data : Array.isArray(data?.cursos) ? data.cursos : [];
+      const rows = list.map((x: any) => this.normalizeCurso(x)).filter(Boolean) as CursoRow[];
+      return this.enrichFromCatalog(rows);
+    };
+
+    const buildFromAsignaciones$ = () => {
+      return forkJoin({
+        asignaciones: this.docenteService.listarAsignaciones().pipe(catchError(() => of([] as any[]))),
+        cursos: this.cursoService.listar().pipe(catchError(() => of([] as any[]))),
+      }).pipe(
+        take(1),
+        map(({ asignaciones, cursos }) => {
+          const asignList = Array.isArray(asignaciones) ? asignaciones : [];
+          const cursosList = Array.isArray(cursos) ? cursos : [];
+
+          const cursoById = new Map<number, any>(
+            cursosList
+              .map((c: any) => {
+                const id = Number(c?.id ?? c?.cursoId ?? c?.curso_id);
+                return Number.isFinite(id) && id > 0 ? ([id, c] as const) : null;
+              })
+              .filter((x): x is readonly [number, any] => !!x),
+          );
+
+          const rows = asignList
+            .map((a: any) => {
+              const did = Number(a?.docente_id ?? a?.docenteId ?? a?.id_docente ?? a?.docente);
+              if (!Number.isFinite(did) || did !== docenteId) return null;
+              const cid = Number(a?.curso_id ?? a?.cursoId ?? a?.id_curso ?? a?.curso);
+              if (!Number.isFinite(cid) || cid <= 0) return null;
+              const asignacionId = Number(a?.id ?? a?.asignacion_id ?? a?.asignacionId);
+              const curso = cursoById.get(cid) ?? { id: cid };
+              const normalized = this.normalizeCurso({ ...curso, asignacion_id: asignacionId });
+              return normalized;
+            })
+            .filter((x): x is CursoRow => !!x);
+
+          // Deduplicar por curso.id
+          const uniq = new Map<number, CursoRow>();
+          for (const r of rows) uniq.set(r.id, r);
+          return Array.from(uniq.values());
+        }),
+      );
+    };
+
+    const scanCursosByDocente$ = () => {
+      return this.cursoService.listar().pipe(
+        take(1),
+        map((cursos) => (Array.isArray(cursos) ? cursos : [])),
+        switchMap((cursos) => {
+          if (!cursos.length) return of([] as CursoRow[]);
+
+          return from(cursos).pipe(
+            mergeMap(
+              (cursoRaw) => {
+                const curso = this.normalizeCurso(cursoRaw);
+                if (!curso) return of(null);
+                return this.docenteService.listarPorCurso(curso.id).pipe(
+                  take(1),
+                  map((docentes) => {
+                    const list = Array.isArray(docentes) ? docentes : [];
+                    return list.some((d) => docenteMatches(d)) ? curso : null;
+                  }),
+                  catchError(() => of(null)),
+                );
+              },
+              4,
+            ),
+            toArray(),
+            map((arr) => arr.filter((x): x is CursoRow => !!x)),
+          );
+        }),
+      );
+    };
+
     this.docenteService
       .listarCursosAsignados(docenteId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        take(1),
+        catchError(() => of([])),
+        map((data) => normalizeCursoList(data)),
+        switchMap((rows) => {
+          if (rows.length) return of(rows);
+          return buildFromAsignaciones$().pipe(
+            switchMap((fromAsign) => (fromAsign.length ? of(fromAsign) : scanCursosByDocente$())),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (data) => {
-          const list = Array.isArray(data) ? data : [];
-          this.cursosAsignados.set(list.map((x: any) => this.normalizeCurso(x)).filter(Boolean) as CursoRow[]);
+        next: (rows) => {
+          this.cursosAsignados.set(this.enrichFromCatalog(rows));
           this.loadingCursosAsignados.set(false);
         },
         error: () => {

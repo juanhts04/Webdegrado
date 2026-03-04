@@ -8,6 +8,7 @@ import { CursoService } from '../../../services/cursos';
 import { DocenteService } from '../../../services/docentes';
 import { EstudiantesService } from '../../../services/estudiantes';
 import { HorarioService } from '../../../services/horarios';
+import { SalonService } from '../../../services/salon';
 
 type ActiveTab = 'cursos' | 'horario';
 
@@ -41,6 +42,7 @@ export class MisCursos {
   private readonly docenteService = inject(DocenteService);
   private readonly estudiantesService = inject(EstudiantesService);
   private readonly horarioService = inject(HorarioService);
+  private readonly salonService = inject(SalonService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
@@ -60,6 +62,8 @@ export class MisCursos {
 
   private cursosAsignadosRaw: any[] = [];
   private horariosById = new Map<number, any>();
+  private salonesById = new Map<number, any>();
+  private lugarByCursoId = new Map<number, string>();
   private readonly docentePorCursoCache = new Map<number, string>();
   private resolviendoDocentes = false;
 
@@ -350,29 +354,149 @@ export class MisCursos {
 
     this.cargandoHorario.set(true);
 
-    this.horarioService
-      .listar()
-      .pipe(take(1), catchError(() => of([] as any[])))
-      .subscribe({
-        next: (horarios) => {
-          const list = Array.isArray(horarios) ? horarios : [];
-          const entries: Array<readonly [number, any]> = list
-            .map((h: any) => {
-              const id = Number(h?.id ?? h?.horario_id ?? h?.id_horario);
-              return Number.isFinite(id) && id > 0 ? ([id, h] as const) : null;
-            })
-            .filter((x): x is readonly [number, any] => x !== null);
-          this.horariosById = new Map<number, any>(entries);
+    forkJoin({
+      horarios: this.horarioService.listar().pipe(take(1), catchError(() => of([] as any[]))),
+      salones: this.salonService.listar().pipe(take(1), catchError(() => of([] as any[]))),
+      asignaciones: this.salonService.listarSalonCurso().pipe(take(1), catchError(() => of([] as any))),
+    }).subscribe({
+      next: ({ horarios, salones, asignaciones }) => {
+        const horarioList = Array.isArray(horarios) ? horarios : [];
+        const entries: Array<readonly [number, any]> = horarioList
+          .map((h: any) => {
+            const id = Number(h?.id ?? h?.horario_id ?? h?.id_horario);
+            return Number.isFinite(id) && id > 0 ? ([id, h] as const) : null;
+          })
+          .filter((x): x is readonly [number, any] => x !== null);
+        this.horariosById = new Map<number, any>(entries);
 
-          const rows = cursosRaw.map((c: any) => this.buildHorarioRow(c)).filter((x): x is HorarioRow => !!x);
-          this.horario.set(rows);
-          this.cargandoHorario.set(false);
-        },
-        error: () => {
-          this.horario.set([]);
-          this.cargandoHorario.set(false);
-        },
-      });
+        this.salonesById = this.buildMapById(Array.isArray(salones) ? salones : [], ['id', 'salon_id', 'id_salon', 'salonId']);
+        this.lugarByCursoId = this.buildLugarByCursoId(cursosRaw, asignaciones);
+
+        const rows = cursosRaw.map((c: any) => this.buildHorarioRow(c)).filter((x): x is HorarioRow => !!x);
+        this.horario.set(rows);
+        this.cargandoHorario.set(false);
+      },
+      error: () => {
+        this.horario.set([]);
+        this.cargandoHorario.set(false);
+      },
+    });
+  }
+
+  private pickFirstDefined(obj: any, keys: string[]) {
+    for (const key of keys) {
+      const value = obj?.[key];
+      if (value !== null && value !== undefined && value !== '') return value;
+    }
+    return undefined;
+  }
+
+  private buildMapById(list: any[], idKeys: string[]): Map<number, any> {
+    const map = new Map<number, any>();
+    for (const item of list ?? []) {
+      const id = Number(this.pickFirstDefined(item, idKeys));
+      if (Number.isFinite(id) && id > 0) map.set(id, item);
+    }
+    return map;
+  }
+
+  private extractArray(value: any): any[] {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') return [];
+    const candidates = [
+      (value as any)?.data,
+      (value as any)?.rows,
+      (value as any)?.result,
+      (value as any)?.asignaciones,
+      (value as any)?.salonCurso,
+      (value as any)?.salon_curso,
+      (value as any)?.items,
+    ];
+    for (const c of candidates) {
+      if (Array.isArray(c)) return c;
+    }
+    return [];
+  }
+
+  private composeSalonLabel(salonLike: any): string {
+    if (!salonLike) return '';
+    const bloque = (this.pickFirstDefined(salonLike, ['bloque', 'salon_bloque']) ?? '').toString().trim();
+    const numero = this.pickFirstDefined(salonLike, ['numero_salon', 'numeroSalon', 'numero', 'salon_numero']);
+    const numeroTxt = numero !== null && numero !== undefined && `${numero}`.trim() ? `${numero}`.trim() : '';
+    const composed = [bloque, numeroTxt].filter(Boolean).join(' - ');
+    if (composed) return composed;
+
+    const nombre = (this.pickFirstDefined(salonLike, ['nombre', 'salon_nombre', 'name']) ?? '').toString().trim();
+    if (nombre) return nombre;
+
+    const codigo = (this.pickFirstDefined(salonLike, ['codigo', 'salon_codigo', 'code']) ?? '').toString().trim();
+    return codigo;
+  }
+
+  private buildLugarByCursoId(cursosRaw: any[], asignacionesResponse: any): Map<number, string> {
+    const map = new Map<number, string>();
+
+    const raw = this.extractArray(asignacionesResponse);
+    for (const r of raw) {
+      const nestedAsignacion =
+        r?.salon_curso && typeof r.salon_curso === 'object'
+          ? r.salon_curso
+          : r?.salonCurso && typeof r.salonCurso === 'object'
+            ? r.salonCurso
+            : r?.asignacion && typeof r.asignacion === 'object'
+              ? r.asignacion
+              : undefined;
+
+      const cursoObj = r?.curso && typeof r.curso === 'object' ? r.curso : undefined;
+      const salonObj = r?.salon && typeof r.salon === 'object' ? r.salon : undefined;
+
+      const cursoIdCandidate = this.pickFirstDefined(r, ['curso_id', 'cursoId', 'id_curso', 'curso', 'curso_fk']);
+      const cursoId = Number(
+        typeof cursoIdCandidate === 'object'
+          ? this.pickFirstDefined(cursoIdCandidate, ['id', 'curso_id', 'cursoId', 'id_curso'])
+          : (cursoIdCandidate ?? this.pickFirstDefined(cursoObj, ['id', 'curso_id', 'cursoId', 'id_curso'])),
+      );
+
+      const salonIdCandidate = this.pickFirstDefined(r, ['salon_id', 'salonId', 'id_salon', 'salon', 'salon_fk']);
+      const salonId = Number(
+        typeof salonIdCandidate === 'object'
+          ? this.pickFirstDefined(salonIdCandidate, ['id', 'salon_id', 'salonId', 'id_salon'])
+          : (salonIdCandidate ?? this.pickFirstDefined(salonObj, ['id', 'salon_id', 'salonId', 'id_salon'])),
+      );
+
+      if (!Number.isFinite(cursoId) || cursoId <= 0) continue;
+      if (!Number.isFinite(salonId) || salonId <= 0) continue;
+
+      const salon = this.salonesById.get(salonId) ?? salonObj ?? nestedAsignacion?.salon;
+      const label = this.composeSalonLabel(salon);
+      if (label) map.set(cursoId, label);
+    }
+
+    // Fallback: si el backend expone salon_id en /cursos-asignados o en /cursos
+    for (const c of cursosRaw ?? []) {
+      const cursoId = Number(c?.id ?? c?.cursoId ?? c?.curso_id ?? c?.id_curso);
+      if (!Number.isFinite(cursoId) || cursoId <= 0) continue;
+      if (map.has(cursoId)) continue;
+
+      const salonObj = c?.salon && typeof c.salon === 'object' ? c.salon : undefined;
+      const direct = (c?.salon_nombre ?? c?.salonNombre ?? '').toString().trim();
+      if (direct) {
+        map.set(cursoId, direct);
+        continue;
+      }
+
+      const salonId = Number(c?.salon_id ?? c?.salonId ?? c?.id_salon ?? salonObj?.id ?? salonObj?.salon_id ?? salonObj?.salonId);
+      if (Number.isFinite(salonId) && salonId > 0) {
+        const salon = this.salonesById.get(salonId) ?? salonObj;
+        const label = this.composeSalonLabel(salon);
+        if (label) map.set(cursoId, label);
+      } else {
+        const label = this.composeSalonLabel(salonObj);
+        if (label) map.set(cursoId, label);
+      }
+    }
+
+    return map;
   }
 
   private buildHorarioRow(curso: any): HorarioRow | null {
@@ -396,7 +520,7 @@ export class MisCursos {
       const time = this.horarioHoraLabel(h);
       if (!days.length || !time) continue;
 
-      const place = this.horarioLugarLabel(h);
+      const place = this.horarioLugarLabel(h, curso);
       for (const d of days) {
         const key = this.normalizeDayKey(d);
         if (!key || !dayBuckets[key]) continue;
@@ -507,7 +631,7 @@ export class MisCursos {
     return inicio || fin;
   }
 
-  private horarioLugarLabel(h: any): string {
+  private horarioLugarLabel(h: any, curso?: any): string {
     const direct = (h?.salon_nombre ?? h?.salonNombre ?? '').toString().trim();
     if (direct) return direct;
 
@@ -520,7 +644,19 @@ export class MisCursos {
     }
 
     const composed = [h?.bloque, h?.numero_salon, h?.numero].filter(Boolean).join(' - ');
-    return composed || '';
+    if (composed) return composed;
+
+    const cursoId = Number(curso?.id ?? curso?.cursoId ?? curso?.curso_id ?? curso?.id_curso);
+    if (Number.isFinite(cursoId) && cursoId > 0) {
+      const place = this.lugarByCursoId.get(cursoId);
+      if (place) return place;
+    }
+
+    const salonObj = curso?.salon && typeof curso.salon === 'object' ? curso.salon : undefined;
+    const cursoDirect = (curso?.salon_nombre ?? curso?.salonNombre ?? '').toString().trim();
+    if (cursoDirect) return cursoDirect;
+    const fallback = this.composeSalonLabel(salonObj);
+    return fallback || '';
   }
 
   private normalizeDayKey(input: string): 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | '' {

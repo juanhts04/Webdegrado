@@ -147,12 +147,22 @@ export class GestionCurso {
           this.horarios.set(
             list
               .map((h: any) => ({
-                id: Number(h?.id),
+                id: Number(h?.id ?? h?.horario_id ?? h?.id_horario ?? h?.horarioId),
                 codigo: typeof h?.codigo === 'string' ? h.codigo : undefined,
                 dia: typeof h?.dia === 'string' ? h.dia : undefined,
                 dias: Array.isArray(h?.dias) ? h.dias.map((x: any) => String(x)) : undefined,
-                hora_inicio: typeof h?.hora_inicio === 'string' ? h.hora_inicio : undefined,
-                hora_fin: typeof h?.hora_fin === 'string' ? h.hora_fin : undefined,
+                hora_inicio:
+                  typeof h?.hora_inicio === 'string'
+                    ? h.hora_inicio
+                    : typeof h?.horaInicio === 'string'
+                      ? h.horaInicio
+                      : undefined,
+                hora_fin:
+                  typeof h?.hora_fin === 'string'
+                    ? h.hora_fin
+                    : typeof h?.horaFin === 'string'
+                      ? h.horaFin
+                      : undefined,
               }))
               .filter((h: Horario) => Number.isFinite(h.id) && h.id > 0),
           );
@@ -163,6 +173,44 @@ export class GestionCurso {
           this.loadingAux.set(false);
         },
       });
+  }
+
+  private parseHorarioIdsFrom(raw: any): number[] {
+    const value =
+      raw?.horario_ids ??
+      raw?.horarioIds ??
+      raw?.horarios_ids ??
+      raw?.horariosIds ??
+      raw?.horario_id ??
+      raw?.horarioId;
+
+    if (Array.isArray(value)) {
+      return value.map((x: any) => Number(x)).filter((x: number) => Number.isFinite(x) && x > 0);
+    }
+
+    if (typeof value === 'string') {
+      return value
+        .split(/[,;\s]+/g)
+        .map((x) => Number(x.trim()))
+        .filter((x) => Number.isFinite(x) && x > 0);
+    }
+
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? [n] : [];
+  }
+
+  private extractHorarioIdsFromList(list: any[]): number[] {
+    return list
+      .map((x: any) => {
+        if (!x) return null;
+        if (typeof x === 'object') {
+          const id = Number(x?.id ?? x?.horario_id ?? x?.id_horario ?? x?.horarioId);
+          return Number.isFinite(id) && id > 0 ? id : null;
+        }
+        const id = Number(x);
+        return Number.isFinite(id) && id > 0 ? id : null;
+      })
+      .filter((x: number | null): x is number => x !== null);
   }
 
   private normalizeCurso(raw: any): CursoRow {
@@ -176,21 +224,20 @@ export class GestionCurso {
     const creditosNum = Number(raw?.creditos);
     const semestreNum = Number(raw?.semestre);
 
-    const horarioIdsFromArray = Array.isArray(raw?.horario_ids)
-      ? raw.horario_ids
-      : Array.isArray(raw?.horarioIds)
-        ? raw.horarioIds
-        : [];
-    const horarioIdSingle = Number(raw?.horario_id ?? raw?.horarioId);
-    const horarioIdsMerged = (
-      horarioIdsFromArray.length
-        ? horarioIdsFromArray
-        : Number.isFinite(horarioIdSingle) && horarioIdSingle > 0
-          ? [horarioIdSingle]
-          : []
-    )
-      .map((x: any) => Number(x))
-      .filter((x: number) => Number.isFinite(x) && x > 0);
+    const horariosList = raw?.horarios ?? raw?.horarios_asignados ?? raw?.horariosAsignados;
+    const horariosListIds = Array.isArray(horariosList) ? this.extractHorarioIdsFromList(horariosList) : [];
+    const horarioSingleObj = raw?.horario && typeof raw.horario === 'object' ? raw.horario : null;
+    const horarioSingleObjId = horarioSingleObj
+      ? Number(horarioSingleObj?.id ?? horarioSingleObj?.horario_id ?? horarioSingleObj?.id_horario ?? horarioSingleObj?.horarioId)
+      : NaN;
+
+    const horarioIdsMerged = [
+      ...horariosListIds,
+      ...this.parseHorarioIdsFrom(raw),
+      ...(Number.isFinite(horarioSingleObjId) && horarioSingleObjId > 0 ? [horarioSingleObjId] : []),
+    ]
+      .map((x) => Number(x))
+      .filter((x) => Number.isFinite(x) && x > 0);
 
     const programaNombreResolved = programaNombre || this.programasAcademicos().find((p) => p.id === programaId)?.nombre || '—';
 
