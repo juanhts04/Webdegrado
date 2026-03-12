@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, PLATFORM_ID, computed, inject, sign
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
-import { catchError, take } from 'rxjs/operators';
+import { catchError, finalize, take } from 'rxjs/operators';
 import { ProgramasAcademicosService } from '../../../services/programas-academicos';
 import { Secretario as SecretarioService } from '../../../services/secretario';
 
@@ -45,6 +45,7 @@ export class RegistrarSecretario {
   readonly query = signal<string>('');
 
   readonly cargando = signal(false);
+  readonly errorMessage = signal<string | null>(null);
 
   readonly filteredSecretarios = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -75,20 +76,26 @@ export class RegistrarSecretario {
 
   private cargarDesdeApi(): void {
     if (!this.isBrowser) return;
+
     this.cargando.set(true);
+    this.errorMessage.set(null);
 
     forkJoin({
       programas: this.programasService.listar().pipe(catchError(() => of([] as any[]))),
       secretarios: this.secretarioService.listar().pipe(catchError(() => of([] as any[]))),
     })
-      .pipe(take(1))
+      .pipe(
+        take(1),
+        finalize(() => this.cargando.set(false)),
+      )
       .subscribe({
         next: ({ programas, secretarios }) => {
-          const programasList = (Array.isArray(programas) ? programas : []).map((p: any) => ({
-            id: String(p?.id ?? p?.programaAcademicoId ?? p?.programa_academico_id ?? ''),
-            nombre: String(p?.nombre ?? p?.programa ?? p?.name ?? '—'),
-          }))
-          .filter((p: ProgramaAcademico) => !!p.id);
+          const programasList = (Array.isArray(programas) ? programas : [])
+            .map((p: any) => ({
+              id: String(p?.id ?? p?.programaAcademicoId ?? p?.programa_academico_id ?? p?.programa_academico ?? ''),
+              nombre: String(p?.nombre ?? p?.programa ?? p?.name ?? '—').trim(),
+            }))
+            .filter((p: ProgramaAcademico) => !!p.id);
 
           const programaNombreById = new Map(programasList.map((p) => [p.id, p.nombre] as const));
 
@@ -104,7 +111,12 @@ export class RegistrarSecretario {
               ).trim();
               const correo = String(s?.correo ?? s?.email ?? s?.mail ?? '').trim();
               const programaAcademicoId = String(
-                s?.programaAcademicoId ?? s?.programa_academico_id ?? s?.programaId ?? s?.programa_id ?? '',
+                s?.programaAcademicoId ??
+                  s?.programa_academico_id ??
+                  s?.programa_academico ??
+                  s?.programaId ??
+                  s?.programa_id ??
+                  '',
               ).trim();
 
               const programaNombreDirecto = String(
@@ -118,7 +130,7 @@ export class RegistrarSecretario {
                 estadoText.includes('inac') || estadoRaw === false || estadoRaw === 0 ? 'Inactivo' : 'Activo';
 
               const fechaRaw = s?.fechaRegistro ?? s?.fecha_registro ?? s?.createdAt ?? s?.created_at ?? s?.fecha;
-              const fecha = this.formatFecha(fechaRaw);
+              const fechaRegistro = this.formatFecha(fechaRaw);
 
               return {
                 id,
@@ -128,19 +140,19 @@ export class RegistrarSecretario {
                 programaAcademicoId,
                 programaNombre,
                 estado,
-                fechaRegistro: fecha,
+                fechaRegistro,
               };
             })
             .filter((x: SecretarioRow | null): x is SecretarioRow => !!x);
 
           this.programasAcademicos.set(programasList);
           this.secretarios.set(secretariosList);
-          this.cargando.set(false);
         },
-        error: () => {
+        error: (err: any) => {
+          console.error('[RegistrarSecretario] Error cargarDesdeApi', err);
           this.programasAcademicos.set([]);
           this.secretarios.set([]);
-          this.cargando.set(false);
+          this.errorMessage.set('No se pudo cargar la información');
         },
       });
   }
@@ -166,6 +178,9 @@ export class RegistrarSecretario {
   }
 
   submit() {
+    if (this.cargando()) return;
+    this.errorMessage.set(null);
+
     const editing = this.editingId();
     if (editing) {
       // En edición, password no es obligatorio.
@@ -180,38 +195,60 @@ export class RegistrarSecretario {
 
     const value = this.form.getRawValue();
 
+    const programaIdNum = this.toNumberId(value.programaAcademicoId);
     const payload: any = {
       codigo: value.codigo.trim(),
       correo: value.correo.trim(),
-      programaAcademicoId: Number.isFinite(Number(value.programaAcademicoId))
-        ? Number(value.programaAcademicoId)
-        : value.programaAcademicoId,
-      nombreCompleto: value.nombreCompleto.trim(),
+      nombre_completo: value.nombreCompleto.trim(),
+      programa_academico: programaIdNum ?? value.programaAcademicoId,
       ...(value.password?.trim() ? { password: value.password.trim() } : {}),
     };
+
+    this.cargando.set(true);
 
     if (editing) {
       const idNum = this.toNumberId(editing);
       if (!idNum) {
+        this.cargando.set(false);
+        this.errorMessage.set('ID inválido para actualizar');
         return;
       }
+
       this.secretarioService
         .actualizar(idNum, payload)
-        .pipe(take(1), catchError(() => of(null)))
-        .subscribe(() => {
-          this.editingId.set(null);
-          this.resetForm();
-          this.cargarDesdeApi();
+        .pipe(
+          take(1),
+          finalize(() => this.cargando.set(false)),
+        )
+        .subscribe({
+          next: () => {
+            this.editingId.set(null);
+            this.resetForm();
+            this.cargarDesdeApi();
+          },
+          error: (err: any) => {
+            console.error('[RegistrarSecretario] Error actualizar', err);
+            this.errorMessage.set(String(err?.error?.message ?? err?.message ?? 'No se pudo actualizar'));
+          },
         });
       return;
     }
 
     this.secretarioService
       .registrar(payload)
-      .pipe(take(1), catchError(() => of(null)))
-      .subscribe(() => {
-        this.resetForm();
-        this.cargarDesdeApi();
+      .pipe(
+        take(1),
+        finalize(() => this.cargando.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.resetForm();
+          this.cargarDesdeApi();
+        },
+        error: (err: any) => {
+          console.error('[RegistrarSecretario] Error registrar', err);
+          this.errorMessage.set(String(err?.error?.message ?? err?.message ?? 'No se pudo registrar'));
+        },
       });
   }
 
@@ -234,14 +271,27 @@ export class RegistrarSecretario {
     const idNum = this.toNumberId(id);
     if (!idNum) return;
 
+    if (this.cargando()) return;
+    this.errorMessage.set(null);
+    this.cargando.set(true);
+
     this.secretarioService
       .eliminar(idNum)
-      .pipe(take(1), catchError(() => of(null)))
-      .subscribe(() => {
-        if (this.editingId() === id) {
-          this.cancel();
-        }
-        this.cargarDesdeApi();
+      .pipe(
+        take(1),
+        finalize(() => this.cargando.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          if (this.editingId() === id) {
+            this.cancel();
+          }
+          this.cargarDesdeApi();
+        },
+        error: (err: any) => {
+          console.error('[RegistrarSecretario] Error eliminar', err);
+          this.errorMessage.set(String(err?.error?.message ?? err?.message ?? 'No se pudo eliminar'));
+        },
       });
   }
 
