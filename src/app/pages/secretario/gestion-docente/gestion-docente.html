@@ -55,8 +55,11 @@
 				</div>
 
 				<div class="actions">
+					@if (docenteErrorMessage()) {
+						<p class="help help-error">{{ docenteErrorMessage() }}</p>
+					}
 					<button class="btn btn-cancel" type="button" (click)="cancelDocente()">Cancelar</button>
-					<button class="btn btn-primary" type="submit" [disabled]="docenteForm.invalid">
+					<button class="btn btn-primary" type="submit" [disabled]="docenteForm.invalid || savingDocente()">
 						{{ docenteEditandoId() ? 'Actualizar Docente' : 'Registrar Docente' }}
 					</button>
 				</div>

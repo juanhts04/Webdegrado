@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, from, of } from 'rxjs';
-import { catchError, map, mergeMap, switchMap, take, toArray } from 'rxjs/operators';
+import { catchError, finalize, map, mergeMap, switchMap, take, toArray } from 'rxjs/operators';
 import { CursoService } from '../../../services/cursos';
 import { DocenteService } from '../../../services/docentes';
 import { ProgramasAcademicosService } from '../../../services/programas-academicos';
@@ -52,6 +52,8 @@ export class GestionDocente {
   readonly loadingDocentes = signal<boolean>(false);
   readonly loadingCursos = signal<boolean>(false);
   readonly loadingCursosAsignados = signal<boolean>(false);
+  readonly savingDocente = signal<boolean>(false);
+  readonly docenteErrorMessage = signal<string | null>(null);
 
   readonly docenteEditandoId = signal<number | null>(null);
   readonly asignacionEditandoId = signal<number | null>(null);
@@ -384,6 +386,9 @@ export class GestionDocente {
   }
 
   submitDocente() {
+    if (this.savingDocente()) return;
+    this.docenteErrorMessage.set(null);
+
     const editingId = this.docenteEditandoId();
     if (editingId) {
       this.docenteForm.controls.password.setValidators([]);
@@ -399,12 +404,19 @@ export class GestionDocente {
     }
 
     const value = this.docenteForm.getRawValue();
+    const programaIdNum = Number(value.programaAcademicoId);
+    const programaId = Number.isFinite(programaIdNum) && programaIdNum > 0 ? programaIdNum : value.programaAcademicoId;
     const payload: any = {
       codigo: value.codigo.trim(),
       nombre: value.nombre.trim(),
+      nombre_completo: value.nombre.trim(),
+      nombreCompleto: value.nombre.trim(),
       correo: value.correo.trim(),
-      programa_academico: Number(value.programaAcademicoId),
+      programa_academico: programaId,
+      programa_academico_id: programaId,
+      programaAcademicoId: programaId,
       descripcion_perfil: value.descripcionPerfil.trim(),
+      descripcionPerfil: value.descripcionPerfil.trim(),
     };
 
     const password = value.password.trim();
@@ -412,30 +424,37 @@ export class GestionDocente {
       payload.password = password;
     }
 
+    this.savingDocente.set(true);
+
+    const doneOk = () => {
+      this.cancelDocente();
+      this.loadDocentes();
+      this.activeTab.set('registrados');
+    };
+
+    const doneErr = (err: any) => {
+      console.error('[GestionDocente] Error guardar docente', err);
+      this.docenteErrorMessage.set(String(err?.error?.message ?? err?.message ?? 'No se pudo guardar el docente'));
+    };
+
     if (editingId) {
       this.docenteService
         .actualizar(editingId, payload)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: () => {
-            this.cancelDocente();
-            this.loadDocentes();
-            this.activeTab.set('registrados');
-          },
-        });
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          finalize(() => this.savingDocente.set(false)),
+        )
+        .subscribe({ next: doneOk, error: doneErr });
       return;
     }
 
     this.docenteService
       .registrar(payload)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.cancelDocente();
-          this.loadDocentes();
-          this.activeTab.set('registrados');
-        },
-      });
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.savingDocente.set(false)),
+      )
+      .subscribe({ next: doneOk, error: doneErr });
   }
 
   editDocente(row: DocenteRow) {
@@ -448,6 +467,10 @@ export class GestionDocente {
       programaAcademicoId: row.programaAcademicoId ? String(row.programaAcademicoId) : '',
       descripcionPerfil: row.descripcionPerfil ?? '',
     });
+
+
+    this.docenteForm.controls.password.setValidators([]);
+    this.docenteForm.controls.password.updateValueAndValidity({ emitEvent: false });
     this.activeTab.set('gestion');
   }
 

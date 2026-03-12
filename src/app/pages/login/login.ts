@@ -42,8 +42,6 @@ export class Login {
 
         localStorage.setItem('currentUser', JSON.stringify(res.usuario));
 
-        alert(`Bienvenido ${res.usuario.nombre}`);
-
         switch (res.usuario.rol) {
           case 'admin':
 			this.router.navigate(['/jcprincipal/registrar-secretario']);

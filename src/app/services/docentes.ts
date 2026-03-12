@@ -36,7 +36,9 @@ export class DocenteService {
 
   /** 🔹 ACTUALIZAR docente */
   actualizar(id: number, docente: any): Observable<any> {
-    return this.http.put(`${this.apiUrl}/docentes/${id}`, docente);
+    return this.http.put(`${this.apiUrl}/docentes/${id}`, docente).pipe(
+      catchError(() => this.http.put(`${this.apiUrl}/docente/${id}`, docente)),
+    );
   }
 
   asignarCurso(data: { docenteId: number; cursoId: number }): Observable<any> {
