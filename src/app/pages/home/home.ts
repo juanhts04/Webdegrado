@@ -18,13 +18,13 @@ type MenuIcon =
   | 'user';
 
 @Component({
-  selector: 'app-jcprincipal',
+  selector: 'app-home',
   imports: [CommonModule, RouterOutlet],
-  templateUrl: './jcprincipal.html',
-  styleUrl: './jcprincipal.scss',
+  templateUrl: './home.html',
+  styleUrl: './home.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Jcprincipal {
+export class Home {
 
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -75,53 +75,53 @@ export class Jcprincipal {
   }
 
   private syncActiveKeyFromUrl(url: string) {
-		if (url.includes('/jcprincipal/supervisar-asistencia')) {
+		if (url.includes('/home/supervisar-asistencia')) {
 			this.activeKey.set('supervisar-asistencia');
 		}
-    if (url.includes('/jcprincipal/asistencia')) {
+    if (url.includes('/home/asistencia')) {
       this.activeKey.set('registrar-asistencia');
     }
-    if (url.includes('/jcprincipal/asistencias-registradas')) {
+    if (url.includes('/home/asistencias-registradas')) {
       this.activeKey.set('asistencias-registradas');
     }
-    if (url.includes('/jcprincipal/mis-cursos')) {
+    if (url.includes('/home/mis-cursos')) {
       this.activeKey.set('mis-cursos');
     }
-    if (url.includes('/jcprincipal/registrar-estudiante-curso')) {
+    if (url.includes('/home/registrar-estudiante-curso')) {
       this.activeKey.set('registrar-estudiante-curso');
     }
-    if (url.includes('/jcprincipal/registro-biometrico')) {
+    if (url.includes('/home/registro-biometrico')) {
       this.activeKey.set('registro-biometrico');
     }
-    if (url.includes('/jcprincipal/registrar-secretario')) {
+    if (url.includes('/home/registrar-secretario')) {
       this.activeKey.set('registrar-secretario');
     }
-		if (url.includes('/jcprincipal/gestion-curso')) {
+		if (url.includes('/home/gestion-curso')) {
 			this.activeKey.set('gestionar-curso');
 		}
-    if (url.includes('/jcprincipal/gestion-docente')) {
+    if (url.includes('/home/gestion-docente')) {
       this.activeKey.set('gestionar-docente');
     }
-    if (url.includes('/jcprincipal/gestion-horario')) {
+    if (url.includes('/home/gestion-horario')) {
       this.activeKey.set('gestionar-horario');
     }
-    if (url.includes('/jcprincipal/gestion-salon')) {
+		if (url.includes('/home/gestion-salon')) {
 			this.activeKey.set('gestionar-salon');
 		}
-    if (url.includes('/jcprincipal/generar-reporte')) {
+    if (url.includes('/home/generar-reporte')) {
       this.activeKey.set('generar-reporte-docente');
     }
-    if (url.includes('/jcprincipal/sec-generar-reporte')) {
+    if (url.includes('/home/sec-generar-reporte')) {
       this.activeKey.set('generar-reporte-secretario');
     }
-    if (url.includes('/jcprincipal/mi-perfil')) {
+    if (url.includes('/home/mi-perfil')) {
       this.activeKey.set('mi-perfil');
     }
   }
 
   readonly isHome = computed(() => {
     const url = this.currentUrl();
-    return url === '/jcprincipal' || url === '/jcprincipal/';
+    return url === '/home' || url === '/home/';
   });
 
   private readCurrentUser(): { nombre?: string; rol?: string } | null {
@@ -221,77 +221,77 @@ export class Jcprincipal {
     this.activeKey.set(key);
 
     if (key === 'supervisar-asistencia') {
-      this.router.navigate(['/jcprincipal/supervisar-asistencia']);
+      this.router.navigate(['/home/supervisar-asistencia']);
       return;
     }
 
     if (key === 'registrar-asistencia') {
-      this.router.navigate(['/jcprincipal/asistencia']);
+      this.router.navigate(['/home/asistencia']);
       return;
     }
 
     if (key === 'asistencias-registradas') {
-      this.router.navigate(['/jcprincipal/asistencias-registradas']);
+      this.router.navigate(['/home/asistencias-registradas']);
       return;
     }
 
     if (key === 'mis-cursos') {
-      this.router.navigate(['/jcprincipal/mis-cursos']);
+      this.router.navigate(['/home/mis-cursos']);
       return;
     }
 
 		if (key === 'registrar-estudiante-curso') {
-      this.router.navigate(['/jcprincipal/registrar-estudiante-curso']);
+			this.router.navigate(['/home/registrar-estudiante-curso']);
 			return;
 		}
 
     if (key === 'registrar-secretario') {
-      this.router.navigate(['/jcprincipal/registrar-secretario']);
+      this.router.navigate(['/home/registrar-secretario']);
       return;
     }
 
     if (key === 'registro-biometrico') {
-      this.router.navigate(['/jcprincipal/registro-biometrico']);
+      this.router.navigate(['/home/registro-biometrico']);
       return;
     }
 
     if (key === 'gestionar-curso') {
-      this.router.navigateByUrl('/jcprincipal/gestion-curso');
+      this.router.navigateByUrl('/home/gestion-curso');
       return;
     }
 
 		if (key === 'gestionar-docente') {
-			this.router.navigateByUrl('/jcprincipal/gestion-docente');
+			this.router.navigateByUrl('/home/gestion-docente');
 			return;
 		}
 
     if (key === 'gestionar-horario') {
-      this.router.navigateByUrl('/jcprincipal/gestion-horario');
+      this.router.navigateByUrl('/home/gestion-horario');
       return;
     }
 
     if (key === 'gestionar-salon') {
-      this.router.navigateByUrl('/jcprincipal/gestion-salon');
+      this.router.navigateByUrl('/home/gestion-salon');
       return;
     }
 
     if (key === 'generar-reporte-docente') {
-      this.router.navigateByUrl('/jcprincipal/generar-reporte');
+      this.router.navigateByUrl('/home/generar-reporte');
       return;
     }
 
     if (key === 'generar-reporte-secretario') {
-      this.router.navigateByUrl('/jcprincipal/sec-generar-reporte');
+      this.router.navigateByUrl('/home/sec-generar-reporte');
       return;
     }
 
     if (key === 'mi-perfil') {
-      this.router.navigateByUrl('/jcprincipal/mi-perfil');
+      this.router.navigateByUrl('/home/mi-perfil');
       return;
     }
 
 		// Fallback: mantener la vista actual.
-		this.router.navigate(['/jcprincipal']);
+    this.router.navigate(['/home']);
   }
 
   logout() {

@@ -44,19 +44,19 @@ export class Login {
 
         switch (res.usuario.rol) {
           case 'admin':
-			this.router.navigate(['/jcprincipal/registrar-secretario']);
+			this.router.navigate(['/home/registrar-secretario']);
             break;
           case 'docente':
-			this.router.navigate(['/jcprincipal/supervisar-asistencia']);
+			this.router.navigate(['/home/supervisar-asistencia']);
             break;
           case 'secretario':
-			this.router.navigate(['/jcprincipal/gestion-curso']);
+			this.router.navigate(['/home/gestion-curso']);
             break;
           case 'estudiante':
-			this.router.navigate(['/jcprincipal/mis-cursos']);
+			this.router.navigate(['/home/mis-cursos']);
             break;
           default:
-            this.router.navigate(['/jcprincipal']);
+			this.router.navigate(['/home']);
         }
       },
       error: (err: any) => {
@@ -82,6 +82,6 @@ export class Login {
   }
 
   entrarComoInvitado() {
-    this.router.navigate(['/jcprincipal']);
+		this.router.navigate(['/home']);
   }
 }

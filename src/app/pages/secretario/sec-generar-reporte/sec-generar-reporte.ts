@@ -1,13 +1,9 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
-  OnDestroy,
   PLATFORM_ID,
-  ViewChild,
   computed,
   inject,
   signal,
@@ -17,8 +13,6 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CursoService } from '../../../services/cursos';
 import { AsistenciaService } from '../../../services/asistencia';
-
-import type { Chart as ChartJsChart } from 'chart.js';
 
 type CursoOption = { id: number; nombre: string; codigo?: string };
 
@@ -39,13 +33,16 @@ type AsistenciaRow = {
 type ResultadoRow = {
   curso: string;
   total: number;
-  asistencia: number;
-  ausencia: number;
-  pAsistencia: string;
+  asistenciaCompletada: number;
+  ausentismo: number;
+  pAsistenciaCompletada: string;
   pAusentismo: string;
-};
 
-type DonutItem = { programa: string; valor: number; color: string };
+	// Compatibilidad con template anterior (columnas Asistencia/Ausencia)
+	asistencia?: number;
+	ausencia?: number;
+	pAsistencia?: string;
+};
 
 @Component({
   selector: 'app-sec-generar-reporte',
@@ -54,7 +51,7 @@ type DonutItem = { programa: string; valor: number; color: string };
   styleUrl: './sec-generar-reporte.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SecGenerarReporte implements AfterViewInit {
+export class SecGenerarReporte {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
@@ -63,14 +60,13 @@ export class SecGenerarReporte implements AfterViewInit {
   private readonly cursoService = inject(CursoService);
   private readonly asistenciaService = inject(AsistenciaService);
 
-  @ViewChild('donutCanvas') donutCanvas?: ElementRef<HTMLCanvasElement>;
-  private donutChart?: ChartJsChart;
-
   readonly cursos = signal<CursoOption[]>([]);
   readonly cargandoAsistenciasRegistradas = signal<boolean>(false);
   readonly asistenciasRegistradas = signal<AsistenciaRow[]>([]);
+	readonly totalEstudiantesCurso = signal<number>(0);
   readonly resultados = signal<ResultadoRow[]>([]);
-  readonly ausentismoPorPrograma = signal<DonutItem[]>([]);
+	readonly reporteErrorMessage = signal<string>('');
+	readonly exportErrorMessage = signal<string>('');
 
   readonly filtrosForm = this.fb.nonNullable.group({
     tipoReporte: this.fb.nonNullable.control(''),
@@ -79,8 +75,12 @@ export class SecGenerarReporte implements AfterViewInit {
     corte: this.fb.nonNullable.control(''),
   });
 
+	// ReactiveForms no notifica a signals por sí solo.
+	// Sincronizamos el curso seleccionado a un signal para que `canGenerate` reaccione.
+	readonly selectedCursoId = signal<string>(this.filtrosForm.controls.cursoId.value);
+
   readonly canGenerate = computed(() => {
-    const cursoId = Number(this.filtrosForm.controls.cursoId.value);
+    const cursoId = Number(this.selectedCursoId());
     return Number.isFinite(cursoId) && cursoId > 0;
   });
 
@@ -91,18 +91,10 @@ export class SecGenerarReporte implements AfterViewInit {
 
     this.filtrosForm.controls.cursoId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+			.subscribe((value) => {
+				this.selectedCursoId.set(value);
         this.cargarAsistenciasRegistradas();
       });
-  }
-
-  ngAfterViewInit(): void {
-    if (!this.isBrowser) return;
-    queueMicrotask(() => this.renderDonut());
-  }
-
-  ngOnDestroy(): void {
-    this.destroyDonut();
   }
 
   logout() {
@@ -149,17 +141,28 @@ export class SecGenerarReporte implements AfterViewInit {
 
   cargarAsistenciasRegistradas() {
     if (!this.isBrowser) return;
+		this.reporteErrorMessage.set('');
 
     const cursoId = Number(this.filtrosForm.controls.cursoId.value);
     if (!Number.isFinite(cursoId) || cursoId <= 0) {
       this.asistenciasRegistradas.set([]);
+			this.totalEstudiantesCurso.set(0);
       return;
     }
 
     this.cargandoAsistenciasRegistradas.set(true);
     this.asistenciaService.listarAsistenciasPorCurso(cursoId).subscribe({
       next: (res) => {
-        const rows: any[] = Array.isArray((res as any)?.asistencias) ? (res as any).asistencias : [];
+        const maybeAny = res as any;
+      const totalRaw = Number(maybeAny?.total ?? maybeAny?.total_estudiantes ?? maybeAny?.totalEstudiantes);
+      this.totalEstudiantesCurso.set(Number.isFinite(totalRaw) && totalRaw > 0 ? totalRaw : 0);
+			const rows: any[] = Array.isArray(maybeAny?.asistencias)
+				? maybeAny.asistencias
+				: Array.isArray(maybeAny)
+					? maybeAny
+					: Array.isArray(maybeAny?.data)
+						? maybeAny.data
+						: [];
         const curso = this.cursoSeleccionadoLabel();
         const mapped: AsistenciaRow[] = rows.map((a: any) => ({
           ...a,
@@ -173,49 +176,104 @@ export class SecGenerarReporte implements AfterViewInit {
       error: (err) => {
         console.error('Error al cargar asistencias registradas', err);
         this.asistenciasRegistradas.set([]);
+      this.totalEstudiantesCurso.set(0);
+			this.reporteErrorMessage.set('No se pudieron cargar asistencias para el curso seleccionado.');
         this.cargandoAsistenciasRegistradas.set(false);
       },
     });
   }
 
+  private estadoCategoria(estado: unknown): 'completada' | 'ausentismo' | 'otro' {
+    const raw = (estado ?? '').toString().trim().toLowerCase();
+    if (!raw) return 'otro';
+
+    // Ausentismo / ausente
+    if (raw === 'ausente' || raw === 'ausencia' || raw.includes('ausent')) return 'ausentismo';
+
+    // Asistencia completada / presente
+    if (raw === 'presente') return 'completada';
+    if (raw.includes('complet')) return 'completada';
+    if (raw.includes('asistencia complet')) return 'completada';
+    if (raw.includes('asistencia completa')) return 'completada';
+
+    return 'otro';
+  }
+
+  private totalEstudiantesFromRows(rows: AsistenciaRow[]): number {
+    const totalBackend = this.totalEstudiantesCurso();
+    if (Number.isFinite(totalBackend) && totalBackend > 0) return totalBackend;
+
+    const ids = new Set<string>();
+    for (const r of rows) {
+      const estudianteId = r.estudiante_id;
+      if (Number.isFinite(estudianteId) && (estudianteId ?? 0) > 0) {
+        ids.add(`id:${estudianteId}`);
+        continue;
+      }
+      const codigo = (r.codigo ?? '').toString().trim();
+      if (codigo) {
+        ids.add(`cod:${codigo}`);
+        continue;
+      }
+      const nombre = (r.nombre_completo ?? '').toString().trim();
+      if (nombre) ids.add(`nom:${nombre}`);
+    }
+    return ids.size || rows.length;
+  }
+
   generarReporte() {
+		this.reporteErrorMessage.set('');
+		this.exportErrorMessage.set('');
+
+		if (!this.canGenerate()) {
+			this.reporteErrorMessage.set('Selecciona un curso para generar el reporte.');
+			return;
+		}
+
+		if (this.cargandoAsistenciasRegistradas()) {
+			this.reporteErrorMessage.set('Espera a que terminen de cargar las asistencias.');
+			return;
+		}
+
     const asistencias = this.asistenciasRegistradas();
     if (!asistencias.length) {
       this.resultados.set([]);
-      this.ausentismoPorPrograma.set([]);
-      this.destroyDonut();
+			this.reporteErrorMessage.set('No hay asistencias registradas para el curso seleccionado.');
       return;
     }
 
-    const agrupado = new Map<string, { total: number; asistencia: number; ausencia: number }>();
+		// Reporte actual: se genera para un curso seleccionado.
+		const curso = (asistencias[0]?.curso ?? this.cursoSeleccionadoLabel() ?? '—').toString().trim() || '—';
+		const totalEstudiantes = this.totalEstudiantesFromRows(asistencias);
+		let completadas = 0;
+		let ausentismo = 0;
 
-    for (const a of asistencias) {
-      const curso = (a.curso ?? '—').toString().trim() || '—';
-      if (!agrupado.has(curso)) {
-        agrupado.set(curso, { total: 0, asistencia: 0, ausencia: 0 });
-      }
-      const bucket = agrupado.get(curso)!;
-      bucket.total += 1;
-      const estado = (a.estado ?? '').toString().trim().toLowerCase();
-      if (estado === 'presente') bucket.asistencia += 1;
-      if (estado === 'ausente') bucket.ausencia += 1;
-    }
+		for (const a of asistencias) {
+			const cat = this.estadoCategoria(a.estado);
+			if (cat === 'completada') completadas += 1;
+			if (cat === 'ausentismo') ausentismo += 1;
+		}
 
-    const resultados: ResultadoRow[] = Array.from(agrupado.entries()).map(([curso, data]) => {
-      const pAsistencia = data.total ? ((data.asistencia / data.total) * 100).toFixed(1) : '0.0';
-      const pAusentismo = data.total ? ((data.ausencia / data.total) * 100).toFixed(1) : '0.0';
-      return {
-        curso,
-        total: data.total,
-        asistencia: data.asistencia,
-        ausencia: data.ausencia,
-        pAsistencia: `${pAsistencia}%`,
-        pAusentismo: `${pAusentismo}%`,
-      };
-    });
+		const pAsistenciaCompletada = totalEstudiantes ? ((completadas / totalEstudiantes) * 100).toFixed(1) : '0.0';
+		const pAusentismo = totalEstudiantes ? ((ausentismo / totalEstudiantes) * 100).toFixed(1) : '0.0';
+
+		const resultados: ResultadoRow[] = [
+			{
+				curso,
+				total: totalEstudiantes,
+				asistenciaCompletada: completadas,
+				ausentismo,
+				pAsistenciaCompletada: `${pAsistenciaCompletada}%`,
+				pAusentismo: `${pAusentismo}%`,
+
+        // Compatibilidad
+        asistencia: completadas,
+        ausencia: ausentismo,
+        pAsistencia: `${pAsistenciaCompletada}%`,
+			},
+		];
 
     this.resultados.set(resultados);
-    this.calcularDonutPorPrograma(asistencias);
   }
 
   private programaFromAsistencia(a: any): string {
@@ -226,42 +284,6 @@ export class SecGenerarReporte implements AfterViewInit {
     return nested || '';
   }
 
-  private calcularDonutPorPrograma(asistencias: AsistenciaRow[]) {
-    const programas = new Map<string, { total: number; ausencias: number }>();
-
-    for (const a of asistencias) {
-      const programa = (a.programa ?? '').toString().trim();
-      if (!programa) continue;
-      if (!programas.has(programa)) {
-        programas.set(programa, { total: 0, ausencias: 0 });
-      }
-      const bucket = programas.get(programa)!;
-      bucket.total += 1;
-      const estado = (a.estado ?? '').toString().trim().toLowerCase();
-      if (estado === 'ausente') bucket.ausencias += 1;
-    }
-
-    const items: DonutItem[] = Array.from(programas.entries()).map(([programa, data]) => {
-      const porcentaje = data.total ? ((data.ausencias / data.total) * 100).toFixed(1) : '0.0';
-      return {
-        programa,
-        valor: Number(porcentaje),
-        color: this.colorAleatorio(programa),
-      };
-    });
-
-    this.ausentismoPorPrograma.set(items);
-    this.renderDonut();
-  }
-
-  private colorAleatorio(seed: string): string {
-    const colores = ['#4CAF50', '#F44336', '#2196F3', '#FF9800', '#9C27B0', '#009688'];
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-    }
-    return colores[hash % colores.length] ?? '#4CAF50';
-  }
 
   formatFecha(value: unknown): string {
     if (value === null || value === undefined) return '—';
@@ -288,93 +310,56 @@ export class SecGenerarReporte implements AfterViewInit {
     return text;
   }
 
-  private destroyDonut() {
-    try {
-      this.donutChart?.destroy?.();
-    } finally {
-      this.donutChart = undefined;
-    }
-  }
-
-  private async renderDonut() {
-    if (!this.isBrowser) return;
-    if (!this.donutCanvas?.nativeElement) return;
-
-    const data = this.ausentismoPorPrograma();
-    if (!data.length) {
-      this.destroyDonut();
-      return;
-    }
-
-    const ctx = this.donutCanvas.nativeElement.getContext('2d');
-    if (!ctx) return;
-
-    this.destroyDonut();
-
-    const mod = await import('chart.js');
-    const { Chart, DoughnutController, ArcElement, Tooltip, Legend } = mod;
-
-    Chart.register(DoughnutController, ArcElement, Tooltip, Legend);
-
-    const labels = data.map((x) => x.programa);
-    const values = data.map((x) => x.valor);
-    const colors = data.map((x) => x.color);
-
-    this.donutChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels,
-        datasets: [
-          {
-            data: values,
-            backgroundColor: colors,
-            borderColor: '#ffffff',
-            borderWidth: 2,
-            hoverOffset: 6,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-          legend: { display: false },
-        },
-      },
-    });
-  }
-
   async exportarPDF() {
     if (!this.isBrowser) return;
+    this.exportErrorMessage.set('');
 
     const resultados = this.resultados();
     if (!resultados.length) {
+      this.exportErrorMessage.set('Primero genera el reporte para poder exportar.');
       alert('No hay datos para exportar');
       return;
     }
 
-    const { jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default as unknown as (doc: any, opts: any) => void;
+    try {
+      const jspdfMod: any = await import('jspdf');
+      const jsPDFCtor = jspdfMod?.jsPDF ?? jspdfMod?.default;
+      if (!jsPDFCtor) throw new Error('No se pudo resolver jsPDF desde el paquete jspdf.');
 
-    const doc = new jsPDF();
+      const autoTableMod: any = await import('jspdf-autotable');
+      const autoTable = (autoTableMod?.default ?? autoTableMod) as (doc: any, opts: any) => void;
+      if (typeof autoTable !== 'function') throw new Error('No se pudo resolver autoTable desde jspdf-autotable.');
 
-    doc.setFontSize(16);
-    doc.text('Reporte Ejecutivo de Asistencia', 14, 15);
+      const doc = new jsPDFCtor();
 
-    doc.setFontSize(10);
-    doc.text(`Tipo: ${this.filtrosForm.controls.tipoReporte.value || 'General'}`, 14, 22);
-    doc.text(`Periodo: ${this.filtrosForm.controls.periodo.value || 'Todos'}`, 14, 28);
-    doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 34);
+      doc.setFontSize(16);
+      doc.text('Reporte Ejecutivo de Asistencia', 14, 15);
 
-    const body = resultados.map((r) => [r.curso, r.total, r.asistencia, r.ausencia, r.pAsistencia, r.pAusentismo]);
+      doc.setFontSize(10);
+      doc.text(`Tipo: ${this.filtrosForm.controls.tipoReporte.value || 'General'}`, 14, 22);
+      doc.text(`Periodo: ${this.filtrosForm.controls.periodo.value || 'Todos'}`, 14, 28);
+      doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 34);
 
-    autoTable(doc, {
-      startY: 42,
-      head: [["Curso", "Total", "Asistencia", "Ausencia", "% Asistencia", "% Ausentismo"]],
-      body,
-    });
+      const body = resultados.map((r) => [
+        r.curso,
+        r.total,
+        r.asistenciaCompletada,
+        r.ausentismo,
+        r.pAsistenciaCompletada,
+        r.pAusentismo,
+      ]);
 
-    doc.save('reporte_ejecutivo.pdf');
+      autoTable(doc, {
+        startY: 42,
+        head: [["Curso", "Total estudiantes", "Asistencia completada", "Ausentismo", "% Asistencia", "% Ausentismo"]],
+        body,
+      });
+
+      doc.save('reporte_ejecutivo.pdf');
+    } catch (err) {
+      console.error('Error exportando PDF', err);
+      this.exportErrorMessage.set('No se pudo exportar el PDF. Revisa la consola para más detalle.');
+      alert('No se pudo exportar el PDF');
+    }
   }
 }

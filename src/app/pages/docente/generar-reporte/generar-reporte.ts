@@ -271,9 +271,8 @@ export class GenerarReporte {
     const hoy = new Date();
 
     return base.filter((row) => {
-      if (!row?.fecha) return false;
-      const fechaAsistencia = new Date(row.fecha);
-      if (!Number.isFinite(fechaAsistencia.getTime())) return false;
+      const fechaAsistencia = this.parseFecha(row?.fecha);
+      if (!fechaAsistencia) return false;
 
       if (tipo === 'Asistencia Diaria') {
         return fechaAsistencia.toDateString() === hoy.toDateString();
@@ -291,6 +290,48 @@ export class GenerarReporte {
 
       return true;
     });
+  }
+
+  private parseFecha(value: unknown): Date | null {
+    if (!value) return null;
+    if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+
+    const text = String(value).trim();
+    if (!text) return null;
+
+    // ISO / YYYY-MM-DD...
+    const iso = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (iso?.[1]) {
+      const d = new Date(`${iso[1]}T00:00:00`);
+      return Number.isFinite(d.getTime()) ? d : null;
+    }
+
+    // DD/MM/YYYY
+    const dmySlash = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmySlash) {
+      const dd = Number(dmySlash[1]);
+      const mm = Number(dmySlash[2]);
+      const yyyy = Number(dmySlash[3]);
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
+        const d = new Date(yyyy, mm - 1, dd);
+        return Number.isFinite(d.getTime()) ? d : null;
+      }
+    }
+
+    // DD-MM-YYYY
+    const dmyDash = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (dmyDash) {
+      const dd = Number(dmyDash[1]);
+      const mm = Number(dmyDash[2]);
+      const yyyy = Number(dmyDash[3]);
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
+        const d = new Date(yyyy, mm - 1, dd);
+        return Number.isFinite(d.getTime()) ? d : null;
+      }
+    }
+
+    const d = new Date(text);
+    return Number.isFinite(d.getTime()) ? d : null;
   }
 
   private cargarReporte(opts: { aplicarTipo: boolean }) {
@@ -315,7 +356,13 @@ export class GenerarReporte {
     this.cargandoReporte.set(true);
 
     const toRows = (curso: CursoOption, res: any): ReporteRow[] => {
-      const asistencias = Array.isArray(res?.asistencias) ? res.asistencias : [];
+      const asistencias = Array.isArray(res?.asistencias)
+        ? res.asistencias
+        : Array.isArray(res)
+          ? res
+          : Array.isArray(res?.data)
+            ? res.data
+            : [];
       return asistencias.map((a: any) => {
         const horaFin = a?.hora_fin ?? a?.horaFin ?? a?.hora_salida ?? a?.horaSalida ?? a?.hora_final ?? a?.horaFinal;
         return {
@@ -388,14 +435,30 @@ export class GenerarReporte {
 
     const data = this.reporteFiltrado();
     if (!data.length) {
+      this.showToast('No hay datos para exportar');
       alert('No hay datos para exportar');
       return;
     }
 
-    const { jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default as unknown as (doc: any, opts: any) => void;
+    let doc: any;
+    let autoTable: (doc: any, opts: any) => void;
 
-    const doc = new jsPDF();
+    try {
+      const jspdfMod: any = await import('jspdf');
+      const jsPDFCtor = jspdfMod?.jsPDF ?? jspdfMod?.default;
+      if (!jsPDFCtor) throw new Error('No se pudo resolver jsPDF desde el paquete jspdf.');
+
+      const autoTableMod: any = await import('jspdf-autotable');
+      autoTable = (autoTableMod?.default ?? autoTableMod) as (doc: any, opts: any) => void;
+      if (typeof autoTable !== 'function') throw new Error('No se pudo resolver autoTable desde jspdf-autotable.');
+
+      doc = new jsPDFCtor();
+    } catch (err) {
+      console.error('Error inicializando PDF', err);
+      this.showToast('No se pudo inicializar la exportación a PDF');
+      alert('No se pudo exportar el PDF');
+      return;
+    }
 
     const titulo = 'Reporte de Asistencia';
     const fechaGeneracion = new Date().toLocaleString();
@@ -429,12 +492,18 @@ export class GenerarReporte {
       row.estado ?? '',
     ]);
 
-    autoTable(doc, {
-      startY: 40,
-      head: [['ID', 'Nombre', 'Curso', 'Fecha', 'Hora Inicio', 'Hora Fin', 'Estado']],
-      body,
-    });
+    try {
+      autoTable(doc, {
+        startY: 40,
+        head: [['ID', 'Nombre', 'Curso', 'Fecha', 'Hora Inicio', 'Hora Fin', 'Estado']],
+        body,
+      });
 
-    doc.save('reporte_asistencia.pdf');
+      doc.save('reporte_asistencia.pdf');
+    } catch (err) {
+      console.error('Error exportando PDF', err);
+      this.showToast('No se pudo exportar el PDF');
+      alert('No se pudo exportar el PDF');
+    }
   }
 }

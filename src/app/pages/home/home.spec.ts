@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Jcprincipal } from './jcprincipal';
+import { Home } from './home';
 
-describe('Jcprincipal', () => {
-  let component: Jcprincipal;
-  let fixture: ComponentFixture<Jcprincipal>;
+describe('Home', () => {
+  let component: Home;
+  let fixture: ComponentFixture<Home>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Jcprincipal]
+      imports: [Home]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(Jcprincipal);
+    fixture = TestBed.createComponent(Home);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { Jcprincipal } from './pages/jcprincipal/jcprincipal';
+import { Home } from './pages/home/home';
 import { RegistrarEstudianteCurso } from './pages/docente/registrar-estudiante-curso/registrar-estudiante-curso';
 import { RegistrarBiometria } from './pages/admin/registrar-biometria/registrar-biometria';
 import { RegistrarSecretario } from './pages/admin/registrar-secretario/registrar-secretario';
@@ -24,8 +24,8 @@ export const routes: Routes = [
     component: Login,
   },
   {
-    path: 'jcprincipal',
-    component: Jcprincipal,
+    path: 'home',
+		component: Home,
 		canActivate: [roleGuard],
 		data: { roles: ['admin', 'docente', 'secretario', 'estudiante'] },
     children: [
@@ -117,73 +117,90 @@ export const routes: Routes = [
   },
   {
     path: 'docente/generar-reporte',
-    redirectTo: 'jcprincipal/generar-reporte',
+    redirectTo: 'home/generar-reporte',
     pathMatch: 'full',
   },
   {
     path: 'docente/supervisar-asistencia',
-    redirectTo: 'jcprincipal/supervisar-asistencia',
+    redirectTo: 'home/supervisar-asistencia',
     pathMatch: 'full',
   },
   {
     path: 'docente/asistencia',
-    redirectTo: 'jcprincipal/asistencia',
+    redirectTo: 'home/asistencia',
     pathMatch: 'full',
   },
   {
     path: 'estudiante/asistencia-registrada',
-    redirectTo: 'jcprincipal/asistencias-registradas',
+    redirectTo: 'home/asistencias-registradas',
     pathMatch: 'full',
   },
   {
     path: 'estudiante/mis-cursos',
-    redirectTo: 'jcprincipal/mis-cursos',
+    redirectTo: 'home/mis-cursos',
     pathMatch: 'full',
   },
   {
     path: 'docente/registrar-estudiante-curso',
-    redirectTo: 'jcprincipal/registrar-estudiante-curso',
+    redirectTo: 'home/registrar-estudiante-curso',
     pathMatch: 'full',
   },
 	{
 		path: 'admin/registrar-secretario',
-		redirectTo: 'jcprincipal/registrar-secretario',
+		redirectTo: 'home/registrar-secretario',
 		pathMatch: 'full',
 	},
   {
     path: 'admin/registrar-biometria',
-    redirectTo: 'jcprincipal/registro-biometrico',
+    redirectTo: 'home/registro-biometrico',
     pathMatch: 'full',
   },
 	{
 		path: 'secretario/gestion-curso',
-		redirectTo: 'jcprincipal/gestion-curso',
+		redirectTo: 'home/gestion-curso',
 		pathMatch: 'full',
   },
   {
     path: 'secretario/gestion-docente',
-    redirectTo: 'jcprincipal/gestion-docente',
+    redirectTo: 'home/gestion-docente',
     pathMatch: 'full',
   },
 	{
 		path: 'secretario/gestion-horario',
-		redirectTo: 'jcprincipal/gestion-horario',
+		redirectTo: 'home/gestion-horario',
 		pathMatch: 'full',
   },
   {
     path: 'secretario/gestion-salon',
-    redirectTo: 'jcprincipal/gestion-salon',
+    redirectTo: 'home/gestion-salon',
     pathMatch: 'full',
   },
   {
     path: 'secretario/sec-generar-reporte',
-    redirectTo: 'jcprincipal/sec-generar-reporte',
+    redirectTo: 'home/sec-generar-reporte',
     pathMatch: 'full',
   },
   {
     path: 'mi-perfil',
-    redirectTo: 'jcprincipal/mi-perfil',
+    redirectTo: 'home/mi-perfil',
     pathMatch: 'full',
-  }
+  },
+
+	// Compatibilidad: rutas antiguas con prefijo /jcprincipal
+	{ path: 'jcprincipal', redirectTo: 'home', pathMatch: 'full' },
+	{ path: 'jcprincipal/supervisar-asistencia', redirectTo: 'home/supervisar-asistencia', pathMatch: 'full' },
+	{ path: 'jcprincipal/asistencia', redirectTo: 'home/asistencia', pathMatch: 'full' },
+	{ path: 'jcprincipal/asistencias-registradas', redirectTo: 'home/asistencias-registradas', pathMatch: 'full' },
+	{ path: 'jcprincipal/mis-cursos', redirectTo: 'home/mis-cursos', pathMatch: 'full' },
+	{ path: 'jcprincipal/registrar-estudiante-curso', redirectTo: 'home/registrar-estudiante-curso', pathMatch: 'full' },
+	{ path: 'jcprincipal/registro-biometrico', redirectTo: 'home/registro-biometrico', pathMatch: 'full' },
+	{ path: 'jcprincipal/registrar-secretario', redirectTo: 'home/registrar-secretario', pathMatch: 'full' },
+	{ path: 'jcprincipal/gestion-curso', redirectTo: 'home/gestion-curso', pathMatch: 'full' },
+	{ path: 'jcprincipal/gestion-docente', redirectTo: 'home/gestion-docente', pathMatch: 'full' },
+	{ path: 'jcprincipal/gestion-horario', redirectTo: 'home/gestion-horario', pathMatch: 'full' },
+	{ path: 'jcprincipal/gestion-salon', redirectTo: 'home/gestion-salon', pathMatch: 'full' },
+	{ path: 'jcprincipal/generar-reporte', redirectTo: 'home/generar-reporte', pathMatch: 'full' },
+	{ path: 'jcprincipal/sec-generar-reporte', redirectTo: 'home/sec-generar-reporte', pathMatch: 'full' },
+	{ path: 'jcprincipal/mi-perfil', redirectTo: 'home/mi-perfil', pathMatch: 'full' },
 
 ];

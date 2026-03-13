@@ -41,6 +41,6 @@ export const roleGuard: CanActivateFn = (route) => {
 
   if (roles.includes(role)) return true;
 
-  router.navigate(['/jcprincipal/mi-perfil']);
+  router.navigate(['/home/mi-perfil']);
   return false;
 };

@@ -6,7 +6,7 @@
 	<section class="card" aria-label="Filtros de reporte">
 		<h2 class="card-title">Reportes de Asistencia</h2>
 
-		<form class="form" [formGroup]="filtrosForm" (ngSubmit)="generarReporte()">
+		<form class="form" [formGroup]="filtrosForm">
 			<div class="grid">
 				<div class="field">
 					<label for="tipoReporte">Tipo de reporte</label>
@@ -47,11 +47,18 @@
 			</div>
 
 			<div class="actions">
-				<button class="btn btn-primary" type="submit" [disabled]="!canGenerate()">Generar reporte</button>
+				<button class="btn btn-primary" type="button" (click)="generarReporte()" [disabled]="!canGenerate()">Generar reporte</button>
 				<button class="btn btn-secondary" type="button" (click)="exportarPDF()" [disabled]="!resultados().length">
 					Exportar PDF
 				</button>
 			</div>
+
+			@if (reporteErrorMessage()) {
+				<div class="help help-error" role="alert">{{ reporteErrorMessage() }}</div>
+			}
+			@if (exportErrorMessage()) {
+				<div class="help help-error" role="alert">{{ exportErrorMessage() }}</div>
+			}
 		</form>
 	</section>
 
@@ -119,8 +126,8 @@
 					<tr>
 						<th>Curso</th>
 						<th>Total estudiantes</th>
-						<th>Asistencia</th>
-						<th>Ausencia</th>
+						<th>Asistencia completada</th>
+						<th>Ausentismo</th>
 						<th>Porcentaje Asistencia</th>
 						<th>Porcentaje Ausentismo</th>
 					</tr>
@@ -130,9 +137,9 @@
 						<tr>
 							<td>{{ row.curso }}</td>
 							<td>{{ row.total }}</td>
-							<td>{{ row.asistencia }}</td>
-							<td>{{ row.ausencia }}</td>
-							<td>{{ row.pAsistencia }}</td>
+							<td>{{ row.asistenciaCompletada }}</td>
+							<td>{{ row.ausentismo }}</td>
+							<td>{{ row.pAsistenciaCompletada }}</td>
 							<td>{{ row.pAusentismo }}</td>
 						</tr>
 					}
@@ -147,30 +154,4 @@
 		</div>
 	</section>
 
-	<section class="card" aria-label="Gráfica de ausentismo por programa">
-		<h2 class="card-title">Porcentaje de Ausentismo por Programa</h2>
-
-		@if (ausentismoPorPrograma().length) {
-			<div class="chart">
-				<div class="donut">
-					<canvas #donutCanvas aria-label="Gráfica de ausentismo por programa" role="img"></canvas>
-				</div>
-
-				<div class="legend" aria-label="Leyenda">
-					@for (item of ausentismoPorPrograma(); track item.programa) {
-						<div class="legend-item">
-							<span class="legend-dot" aria-hidden="true" [style.background]="item.color"></span>
-							<span class="legend-label">{{ item.programa }}</span>
-							<span class="legend-value">{{ item.valor }}%</span>
-						</div>
-					}
-				</div>
-			</div>
-		} @else {
-			<div class="empty-chart">
-				<div class="empty-title">Sin datos para graficar</div>
-				<div class="empty-subtitle">Presiona “Generar reporte” cuando tengas información real.</div>
-			</div>
-		}
-	</section>
 </div>
